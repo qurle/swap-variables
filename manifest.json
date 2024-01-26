@@ -1,15 +1,18 @@
 {
-  "name": "<Plugin name>",
+  "name": "Swap Variables",
   "id": "<000000000000000000>",
   "api": "1.0.0",
   "main": "dist/code.js",
   "editorType": [
     "figma"
   ],
+  "permissions": [
+    "teamlibrary"
+  ],
   "relaunchButtons": [
     {
       "command": "relaunch",
-      "name": "<do the stuff again>",
+      "name": "Swap Variables",
       "multipleSelection": true
     }
   ],

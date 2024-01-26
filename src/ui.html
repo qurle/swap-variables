@@ -1,21 +1,195 @@
 <!-- interface -->
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
+
+    :root {
+        --color-background: #fcfcfc;
+        --color-main: #313131;
+        --color-main-50: #31313180;
+        --color-main-20: #31313131;
+
+        --color-button: #3e71d7;
+        --color-buttonHover: #6E26E4;
+
+
+        --color-button1: #3e71d7;
+        --color-button2: #6E26E4;
+        --color-button2-25: #6E26E440;
+
+        background-color: white;
+    }
+
+
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        font-size: 16px;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+        color: var(--color-main);
+        transition-timing-function: ease-in-out;
+        transition-duration: 200ms;
+    }
+
+    .container,
+    form {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: stretch center;
+        gap: 1rem;
+    }
+
+    .container {
+
+        height: 100%;
+        width: 100%;
+        padding: 2rem;
+    }
+
+    .select-wrapper {
+        position: relative;
+        border: 1px solid var(--color-main-20);
+        border-radius: 0.5rem;
+        background: var(--color-background);
+    }
+
+    .select-wrapper::after {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        translate: 0 -75%;
+        content: '';
+        width: 0.5rem;
+        height: 0.5rem;
+        border-right: 1px solid var(--color-main-50);
+        border-bottom: 1px solid var(--color-main-50);
+        rotate: 45deg;
+        pointer-events: none;
+    }
+
+    .select-wrapper:hover {
+        border-color: var(--color-main-50);
+    }
+
+    select {
+        appearance: none;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: none;
+        background: none;
+    }
+
+    select:focus {
+        outline: none;
+    }
+
+    svg {
+        width: 100%;
+        opacity: 0.3;
+    }
+
+    button {
+        cursor: pointer;
+        padding: 1rem;
+        background: linear-gradient(-45deg, var(--color-button1), var(--color-button2));
+        background-size: 300% 300%;
+
+        background-position: 50% 50%;
+        color: var(--color-background);
+        border: none;
+        outline: none;
+        border-radius: 0.5rem;
+
+        box-shadow: 0 1rem 0 -0.5rem transparent;
+        transition-property: background-position, box-shadow;
+    }
+
+    button:hover {
+        /* background: var(--color-button-hover); */
+        background-position: 0% 50%;
+        box-shadow: 0 1rem 1rem -0.5rem var(--color-button2-25);
+    }
+</style>
+<div class="container">
+    <form>
+        <div class="select-wrapper">
+            <select name="from">
+            </select>
+        </div>
+        <svg width="9" height="39" viewBox="0 0 9 39" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4.33087 0.69873V37.3781M4.33087 37.3781L0.42627 33.4735M4.33087 37.3781L8.23546 33.4735" stroke="currentColor" />
+        </svg>
+
+        <div class="select-wrapper">
+            <select name="to"></select>
+        </div>
+        <button type="submit">Swap Variables</button>
+    </form>
+</div>
 <script>
-    onmessage = async (event) => {
-        fetch('https://example.com/api/send.php',
-            {
-                method: 'POST',
-                body: JSON.stringify({
-                    k: event.data.pluginMessage.k,
-                    v: event.data.pluginMessage.v
-                })
-            })
-            .then(response => {
-                console.log(JSON.stringify(response))
-                if (event.data.pluginMessage.last)
-                    parent.postMessage({ pluginMessage: "finished" }, '*')
-            }).catch((e) => {
-                console.error(e)
-                parent.postMessage({ pluginMessage: "finished" }, '*')
-            })
+    const form = document.querySelector('form')
+    const selectFrom = form.querySelector('select[name=from]')
+    const selectTo = form.querySelector('select[name=to]')
+
+    window.onmessage = async (event) => {
+        const type = event.data.pluginMessage.type
+        const message = event.data.pluginMessage.message
+
+        switch (type) {
+            case 'libs':
+                fillLibs(message)
+                console.log('libs')
+                break;
+        }
+    }
+
+    form.onsubmit = (event) => {
+        event.preventDefault()
+        const from = selectFrom.selectedOptions[0]
+        const to = selectTo.selectedOptions[0]
+        parent.postMessage({
+            pluginMessage: {
+                type: 'swap', message: {
+                    from: {
+                        lib: from.dataset.lib,
+                        collection: from.dataset.collection,
+                    },
+                    to: {
+                        lib: to.dataset.lib,
+                        collection: to.dataset.collection,
+                    }
+                }
+            }
+        }, '*')
+    }
+
+    function fillLibs(libs) {
+        const options = Object.groupBy(libs, ({ libraryName }) => libraryName)
+
+        for (const [lib, collections] of Object.entries(options)) {
+            const optgroup = document.createElement('optgroup')
+            optgroup.label = lib
+            for (const collection of collections) {
+                const option = document.createElement('option')
+                option.textContent = `${lib.slice(0, 8)}... > ${collection.name}`
+                option.dataset.lib = lib
+                option.dataset.collection = collection.name
+                // option.dataset.key = collection.key
+                optgroup.appendChild(option)
+            }
+            selectFrom.appendChild(optgroup)
+            selectTo.appendChild(optgroup.cloneNode(true))
+        }
+    }
+
+    Object.prototype.groupBy = (arr, callback) => {
+        return arr.reduce((acc = {}, ...args) => {
+            const key = callback(...args);
+            acc[key] ??= []
+            acc[key].push(args[0]);
+            return acc;
+        }, {})
     }
 </script>

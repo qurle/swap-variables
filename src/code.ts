@@ -11,32 +11,43 @@ let count: number = 0
 
 figma.on("currentpagechange", cancel)
 
-// For networking purposes
-figma.showUI(__html__, { visible: false })
-const post = (k, v = 1, last = false) => figma.ui.postMessage({ k: k, v: v, last: last })
+// Connect with UI
+figma.showUI(__html__, { height: 300, width: 400 })
 figma.ui.onmessage = async (msg) => {
+  switch (msg.type) {
+    case 'swap':
+      selection = figma.currentPage.selection
+      swap(msg.message, selection)
+      break;
+  }
   if (msg === "finished") // Real plugin finish (after server's last response)
     figma.closePlugin()
   else
     console.log(msg)
 }
 
-// Main + Elements Check
-post("started")
+// Engine start
+figma.ui.postMessage("started")
 working = true
-selection = figma.currentPage.selection
+run(figma.currentPage)
 
-// Anything selected?
-if (selection.length)
-  for (const node of selection)
-    mainFunction(node)
-else
-  mainFunction(figma.currentPage)
-finish()
 
-// Action for selected nodes
-function mainFunction(node: SceneNode | PageNode) {
+async function run(node: SceneNode | PageNode) {
+  figma.ui.postMessage({ type: 'libs', message: await getLibraries() })
   count++
+  // finish()
+  // figma.closePlugin()
+}
+
+async function getLibraries() {
+  return await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
+}
+
+function swap(libs, selection) {
+  const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
+  for (const node of nodes) {
+    console.log(node)
+  }
 }
 
 // Ending the work
@@ -50,7 +61,7 @@ function finish() {
 
   }
   else notify(idleMsgs[Math.floor(Math.random() * idleMsgs.length)])
-  setTimeout(() => { console.log("Timeouted"), figma.closePlugin() }, 3000)
+  setTimeout(() => { console.log("Timeouted"), figma.closePlugin() }, 30000)
 }
 
 // Show new notification

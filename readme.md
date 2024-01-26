@@ -1,17 +1,17 @@
-# Plugin name for Figma
-Plugin description
+# Swap Variables for Figma
+Just like Swap Libraries, but for variables
 
-![<Plugin name covers>](https://github.com/qurle/plugin-starter/blob/main/assets/cover.png?raw=true)
+![<Plugin name covers>](https://github.com/qurle/swap-variables/blob/main/assets/cover.png?raw=true)
 
 ## **How to use**
 
 **Just run it** from the Quick Actions or Plugin menu. 
 
-Alternatively, you can select some layers. The plugin will `<do this>`.
+Alternatively, you can select some layers. The plugin will swap variables they contain.
 
 ## **How it works**
 
-`<Tell us>`
+You choose *from* and *to*, plugin replaces them for you.
 
 ## **Problem? Idea? Kind words?**
 
