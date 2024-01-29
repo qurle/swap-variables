@@ -18,6 +18,7 @@
         --color-button2-25: #6E26E440;
 
         background-color: white;
+        font-size: 14px;
     }
 
 
@@ -140,30 +141,34 @@
         switch (type) {
             case 'libs':
                 fillLibs(message)
-                console.log('libs')
                 break;
         }
     }
 
-    form.onsubmit = (event) => {
-        event.preventDefault()
-        const from = selectFrom.selectedOptions[0]
-        const to = selectTo.selectedOptions[0]
-        parent.postMessage({
-            pluginMessage: {
-                type: 'swap', message: {
-                    from: {
-                        lib: from.dataset.lib,
-                        collection: from.dataset.collection,
-                    },
-                    to: {
-                        lib: to.dataset.lib,
-                        collection: to.dataset.collection,
+    selectFrom.onchange =
+
+        form.onsubmit = (event) => {
+            event.preventDefault()
+            const from = selectFrom.selectedOptions[0]
+            const to = selectTo.selectedOptions[0]
+
+            parent.postMessage({
+                pluginMessage: {
+                    type: 'swap', message: {
+                        from: {
+                            lib: from.dataset.lib,
+                            collection: from.dataset.collection,
+                            key: from.dataset.key
+                        },
+                        to: {
+                            lib: to.dataset.lib,
+                            collection: to.dataset.collection,
+                            key: to.dataset.key
+                        }
                     }
                 }
-            }
-        }, '*')
-    }
+            }, '*')
+        }
 
     function fillLibs(libs) {
         const options = Object.groupBy(libs, ({ libraryName }) => libraryName)
@@ -176,7 +181,7 @@
                 option.textContent = `${lib.slice(0, 8)}... > ${collection.name}`
                 option.dataset.lib = lib
                 option.dataset.collection = collection.name
-                // option.dataset.key = collection.key
+                option.dataset.key = collection.key
                 optgroup.appendChild(option)
             }
             selectFrom.appendChild(optgroup)
