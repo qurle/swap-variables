@@ -10,3 +10,18 @@ export interface Libs {
         key: string
     }
 }
+
+export interface Errors {
+    noMatch: {
+        name: string,
+        value: string,
+        type: string
+    }[]
+    mixed: {
+        nodeName: string
+    }[],
+    badProp: {
+        property: string,
+        nodeName: string
+    }[]
+}

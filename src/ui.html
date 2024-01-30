@@ -17,20 +17,54 @@
         --color-button2: #6E26E4;
         --color-button2-25: #6E26E440;
 
-        background-color: white;
-        font-size: 14px;
+        --transition-rule: 200ms ease-in-out;
+
+        /* 1rem is 16px by default */
+        --gap-l: 1rem;
+        --gap-m: 0.75rem;
+        --gap-s: 0.5rem;
+        --gap-xs: 0.25rem;
+
+        --font-size-m: 0.875rem;
+        --font-size-s: 0.75rem;
+        --font-size-xs: 0.5rem;
+
+        --radius-m: 0.5rem;
+        --radius-s: 0.25rem;
+
+        background-color: var(--figma-color-bg);
     }
 
 
     * {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        font-size: 16px;
         padding: 0;
         margin: 0;
         box-sizing: border-box;
-        color: var(--color-main);
-        transition-timing-function: ease-in-out;
-        transition-duration: 200ms;
+        color: var(--figma-color-text);
+    }
+
+
+    .border-extender {
+        position: relative;
+        height: 1rem;
+        background: var(--figma-color-border);
+    }
+
+    .border-extender>div {
+        position: absolute;
+        height: 0.5rem;
+        width: 100%;
+        border-radius: var(--radius-m) var(--radius-m) 0 0;
+        background: var(--figma-color-bg);
+        bottom: 0;
+    }
+
+    .container {
+        height: calc(100%-1rem);
+        width: 100%;
+        padding: var(--gap-l);
+        font-size: var(--font-size-m);
     }
 
     .container,
@@ -39,21 +73,22 @@
         flex-direction: column;
         justify-content: center;
         align-items: stretch center;
-        gap: 1rem;
+        gap: var(--gap-l);
     }
 
-    .container {
-
-        height: 100%;
-        width: 100%;
-        padding: 2rem;
+    label {
+        display: block;
+        padding: 0 var(--gap-s);
+        margin-bottom: var(--gap-s);
+        font-size: var(--font-size-s);
+        color: var(--figma-color-text-secondary);
     }
 
     .select-wrapper {
         position: relative;
-        border: 1px solid var(--color-main-20);
-        border-radius: 0.5rem;
-        background: var(--color-background);
+        border: 1px solid var(--figma-color-border);
+        border-radius: var(--radius-m);
+        transition: background-color var(--transition-rule);
     }
 
     .select-wrapper::after {
@@ -64,75 +99,187 @@
         content: '';
         width: 0.5rem;
         height: 0.5rem;
-        border-right: 1px solid var(--color-main-50);
-        border-bottom: 1px solid var(--color-main-50);
+        border-right: 1px solid var(--figma-color-icon);
+        border-bottom: 1px solid var(--figma-color-icon);
         rotate: 45deg;
         pointer-events: none;
     }
 
     .select-wrapper:hover {
-        border-color: var(--color-main-50);
+        background-color: var(--figma-color-bg-hover);
     }
 
     select {
         appearance: none;
         width: 100%;
-        padding: 0.75rem 1rem;
+        padding: 0.75rem 2rem 0.75rem 1rem;
         border: none;
         background: none;
     }
 
     select:focus {
         outline: none;
+        background-color: var(--figma-color-bg-hover);
     }
 
-    svg {
+    .buttons {
+        display: flex;
         width: 100%;
-        opacity: 0.3;
+        gap: var(--gap-s);
     }
 
     button {
         cursor: pointer;
         padding: 1rem;
-        background: linear-gradient(-45deg, var(--color-button1), var(--color-button2));
-        background-size: 300% 300%;
 
-        background-position: 50% 50%;
-        color: var(--color-background);
+        color: var(--figma-color-text-oninverse);
         border: none;
         outline: none;
-        border-radius: 0.5rem;
+        background: none;
+        border-radius: var(--radius-m);
 
-        box-shadow: 0 1rem 0 -0.5rem transparent;
-        transition-property: background-position, box-shadow;
+        letter-spacing: 0.02;
+        transition: background-color var(--transition-rule);
     }
 
     button:hover {
-        /* background: var(--color-button-hover); */
-        background-position: 0% 50%;
-        box-shadow: 0 1rem 1rem -0.5rem var(--color-button2-25);
+        background: var(--figma-color-bg-hover);
+    }
+
+    button.primary {
+        width: 100%;
+        background: var(--figma-color-bg-inverse);
+        color: var(--figma-color-bg-secondary);
+        opacity: 1;
+    }
+
+    button.primary:hover {
+        transition: opacity var(--transition-rule), box-shadow var(--transition-rule);
+        opacity: 0.95;
+    }
+
+    .figma-light button.primary {
+        box-shadow: 4px 4px 8px 0px rgba(255, 255, 255, 0.10) inset, -2px -2px 4px 0px rgba(0, 0, 0, 0.25) inset, 0px 16px 16px -8px rgba(49, 49, 49, 0.25);
+    }
+
+    button.secondary {
+        padding-top: 0;
+        padding-bottom: 0;
+        border: 1px solid var(--figma-color-border);
+    }
+
+    svg {
+        color: var(--figma-color-icon);
+    }
+
+    .errors {
+        display: flex;
+        display: none;
+        flex-direction: column;
+        gap: var(--gap-m);
+        margin-top: var(--gap-s);
+    }
+
+    .errors h2 {
+        font-size: var(--font-size-m);
+        font-weight: normal;
+        color: var(--figma-color-icon-danger);
+    }
+
+    .errors h3 {
+        font-size: var(--font-size-s);
+        font-weight: normal;
+        color: var(--figma-color-text-secondary);
+    }
+
+    .errors ul {
+        display: flex;
+        display: none;
+        flex-direction: column;
+        gap: var(--gap-m);
+    }
+
+    .errors li {
+        display: flex;
+        font-size: var(--font-size-s);
+        margin-left: var(--gap-m);
+    }
+
+    .errors li p {
+        width: 100%;
+    }
+
+    .errors li div {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 1rem;
+        border-radius: var(--radius-s);
+        font-size: var(--font-size-xs);
+        max-width: 20%;
+    }
+
+    .errors li p,
+    .errors li div {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 </style>
+<div class="border-extender">
+    <div></div>
+</div>
 <div class="container">
     <form>
-        <div class="select-wrapper">
-            <select name="from">
-            </select>
+        <div>
+            <label for="from">Source</label>
+            <div class="select-wrapper">
+                <select id="from" name="from">
+                </select>
+            </div>
         </div>
-        <svg width="9" height="39" viewBox="0 0 9 39" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4.33087 0.69873V37.3781M4.33087 37.3781L0.42627 33.4735M4.33087 37.3781L8.23546 33.4735" stroke="currentColor" />
-        </svg>
-
-        <div class="select-wrapper">
-            <select name="to"></select>
+        <div>
+            <label for="to">Swap to</label>
+            <div class="select-wrapper">
+                <select id="to" name="to"></select>
+            </div>
         </div>
-        <button type="submit">Swap Variables</button>
+        <div class="buttons">
+            <button title="Reverse libraries" class="secondary reverse" type="button">
+                <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" d="M16 18.5V6.5M16 6.5L20 10.625M16 6.5L12 10.625" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M8 6.5V18.5M8 18.5L12 14.375M8 18.5L4 14.375" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </button>
+            <button type="submit" class="primary">Swap Variables</button>
+        </div>
+        <div class="errors">
+            <h2>0 errors</h2>
+            <ul class="no-match">
+                <h3>No matches</h3>
+            </ul>
+            <ul class="mixed">
+                <h3>Text with mixed colors</h3>
+            </ul>
+            <ul class="bad-prop">
+                <h3>Bad properties</h3>
+            </ul>
+        </div>
     </form>
 </div>
 <script>
     const form = document.querySelector('form')
     const selectFrom = form.querySelector('select[name=from]')
     const selectTo = form.querySelector('select[name=to]')
+    const reverse = form.querySelector('button.reverse')
+    const errorsEl = document.querySelector('.errors')
+    const heading = errorsEl.querySelector('h2')
+    const lists = {
+        noMatch: errorsEl.querySelector('ul.no-match'),
+        mixed: errorsEl.querySelector('ul.mixed'),
+        badProp: errorsEl.querySelector('ul.bad-prop')
+    }
+
 
     window.onmessage = async (event) => {
         const type = event.data.pluginMessage.type
@@ -141,34 +288,49 @@
         switch (type) {
             case 'libs':
                 fillLibs(message)
-                break;
+                break
+            case 'errors':
+                showErrors(message)
+                break
         }
     }
 
-    selectFrom.onchange =
+    form.onsubmit = (event) => {
+        event.preventDefault()
+        const from = selectFrom.selectedOptions[0]
+        const to = selectTo.selectedOptions[0]
 
-        form.onsubmit = (event) => {
-            event.preventDefault()
-            const from = selectFrom.selectedOptions[0]
-            const to = selectTo.selectedOptions[0]
-
-            parent.postMessage({
-                pluginMessage: {
-                    type: 'swap', message: {
-                        from: {
-                            lib: from.dataset.lib,
-                            collection: from.dataset.collection,
-                            key: from.dataset.key
-                        },
-                        to: {
-                            lib: to.dataset.lib,
-                            collection: to.dataset.collection,
-                            key: to.dataset.key
-                        }
+        parent.postMessage({
+            pluginMessage: {
+                type: 'swap', message: {
+                    from: {
+                        lib: from.dataset.lib,
+                        collection: from.dataset.collection,
+                        key: from.dataset.key
+                    },
+                    to: {
+                        lib: to.dataset.lib,
+                        collection: to.dataset.collection,
+                        key: to.dataset.key
                     }
                 }
-            }, '*')
-        }
+            }
+        }, '*')
+        reverseSelects()
+        clearErrors()
+    }
+
+    reverse.onclick = (event) => {
+        reverseSelects()
+    }
+
+    function reverseSelects() {
+        const fromIndex = selectFrom.selectedIndex
+        const toIndex = selectTo.selectedIndex
+
+        selectFrom.options[toIndex].selected = true
+        selectTo.options[fromIndex].selected = true
+    }
 
     function fillLibs(libs) {
         const options = Object.groupBy(libs, ({ libraryName }) => libraryName)
@@ -187,6 +349,67 @@
             selectFrom.appendChild(optgroup)
             selectTo.appendChild(optgroup.cloneNode(true))
         }
+    }
+
+    function showErrors(errorsObj) {
+        const errorCount = Object.values(errorsObj).reduce((acc, err) => acc + err.length, 0)
+        if (errorCount === 0) return
+
+
+
+        heading.textContent = errorCount + ' error' + (errorCount === 1 ? '' : 's')
+        errorsEl.style.display = 'flex'
+
+        for (const [key, errors] of Object.entries(errorsObj)) {
+            if (errors.length > 0) {
+                errors.map(error => {
+                    let errorText
+                    let icon = document.createElement('div')
+                    switch (key) {
+                        case 'noMatch':
+                            errorText = error.name + ' not found'
+                            switch (error.type) {
+                                case 'COLOR':
+                                    icon.style.background = error.value
+                                    icon.style.width = '1rem'
+                                    icon.style.border = '1px solid var(--figma-color-border)'
+                                    break
+                                case 'TEXT':
+                                case 'BOOLEAN':
+                                case 'NUMBER':
+                                    icon.style.background = 'var(--figma-color-bg-tertiary)'
+                                    icon.style.padding = '0 0.25rem'
+                                    icon.textContent = error.value
+                                    break
+                            }
+                            break
+                        case 'mixed':
+                            errorText = error.nodeName + ' has mixed fills'
+                            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><g opacity=".9"><path fill="#313131" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z"/><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke"/></g></svg>`
+                            break
+                        case 'bad-prop':
+                            errorText = 'Can\'t replace ' + error.property + ' of ' + error.nodeName
+                            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4.67v4" vector-effect="non-scaling-stroke"/><path fill="#000" d="M8 11.33A.67.67 0 1 0 8 10a.67.67 0 0 0 0 1.33Z"/></svg>`
+                            break
+                    }
+                    const text = document.createElement('p')
+                    text.textContent = errorText
+                    const listItem = document.createElement('li')
+                    listItem.appendChild(text)
+                    listItem.appendChild(icon)
+                    lists[key].appendChild(listItem)
+                })
+                lists[key].style.display = 'flex'
+            }
+        }
+    }
+
+    function clearErrors() {
+        document.querySelectorAll('.errors ul').forEach(el => {
+            el.style.display = 'none'
+            el.querySelectorAll('li').forEach(el => { el.remove() })
+        })
+        errorsEl.style.display = 'none'
     }
 
     Object.prototype.groupBy = (arr, callback) => {
