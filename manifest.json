@@ -1,6 +1,6 @@
 {
   "name": "Swap Variables",
-  "id": "<000000000000000000>",
+  "id": "1334258818515407420",
   "api": "1.0.0",
   "main": "dist/code.js",
   "editorType": [
@@ -9,6 +9,11 @@
   "permissions": [
     "teamlibrary"
   ],
+  "networkAccess": {
+    "allowedDomains": [
+      "none"
+    ]
+  },
   "relaunchButtons": [
     {
       "command": "relaunch",

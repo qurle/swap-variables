@@ -52,6 +52,7 @@ figma.ui.postMessage("started")
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
+  ``
   libraries = await getLibraries()
   figma.ui.postMessage({ type: 'libs', message: libraries })
   // finish()
@@ -60,10 +61,16 @@ async function run(node: SceneNode | PageNode) {
 
 async function getLibraries() {
   const localCollections = figma.variables.getLocalVariableCollections().filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name }))
-  const externalCollections = await Promise.all((await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()).filter(
-    async (el) => (await figma.teamLibrary.getVariablesInLibraryCollectionAsync(el.key)).length > 0
-  ))
-  return [...await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(), ...localCollections]
+  const libraries = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
+
+  // Non empty collections
+  const externalCollections = []
+  for (const library of libraries) {
+    if ((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(library.key)).length > 0) {
+      externalCollections.push(library)
+    }
+  }
+  return [...externalCollections, ...localCollections]
 }
 
 async function swap(libs: Libs, nodes) {
