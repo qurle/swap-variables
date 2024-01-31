@@ -18,7 +18,7 @@ You choose *from* and *to*, plugin replaces them for you.
 - [x] Clickable error allows to zoom in problematic layers
 - [x] Collections with 0 variables are hidden
 - [ ] Display number of variables in collection
-- [ ] "From" fiels is preselected with variable that layers contain
+- [ ] "From" fields are preselected with variable that layers contain
 - [ ] Selecting the option that's in second select makes them swap
 
 ## **Problem? Idea? Kind words?**
