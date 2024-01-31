@@ -15,13 +15,23 @@ export interface Errors {
     noMatch: {
         name: string,
         value: string,
-        type: string
+        type: string,
+        nodeId: string
     }[]
     mixed: {
-        nodeName: string
+        nodeName: string,
+        nodeId: string
     }[],
     badProp: {
         property: string,
-        nodeName: string
+        nodeName: string,
+        nodeId: string
+    }[],
+    unsupported: {
+        property: string,
+        nodeName: string,
+        type: string,
+        nodeId: string
+
     }[]
 }

@@ -7,16 +7,17 @@ const idleMsgs = ["All great, already", "Nothing to do, everything's good", "Any
 
 // Variables
 let notification: NotificationHandler
-let selection: ReadonlyArray<SceneNode>
 let working: boolean
 let count: number
 let libraries
 let errors: Errors = {
   noMatch: [],
   mixed: [],
-  badProp: []
+  badProp: [],
+  unsupported: []
 }
-
+let logs = true
+let nodesCount: number = 0
 
 // Cancel on page change
 figma.on("currentpagechange", cancel)
@@ -30,21 +31,29 @@ figma.ui.onmessage = async (msg) => {
       errors = {
         noMatch: [],
         mixed: [],
-        badProp: []
+        badProp: [],
+        unsupported: []
       }
+
       count = 0
 
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
+
+      nodesCount = 0
+      recursiveCount(nodes)
+
       await swap(msg.message, nodes)
       nodes.forEach(node => { node.setRelaunchData({ relaunch: '' }) })
       finish()
-      break;
+      break
+    case 'goToNode': {
+      figma.viewport.scrollAndZoomIntoView([figma.getNodeById(msg.message.nodeId)])
+      break
+    }
+    case 'finished': // Real plugin finish (after server's last response)
+      figma.closePlugin()
   }
-  if (msg === "finished") // Real plugin finish (after server's last response)
-    figma.closePlugin()
-  else
-    console.log(msg)
 }
 
 // Engine start
@@ -52,11 +61,8 @@ figma.ui.postMessage("started")
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
-  ``
   libraries = await getLibraries()
   figma.ui.postMessage({ type: 'libs', message: libraries })
-  // finish()
-  // figma.closePlugin()
 }
 
 async function getLibraries() {
@@ -75,6 +81,7 @@ async function getLibraries() {
 
 async function swap(libs: Libs, nodes) {
   for (const node of nodes) {
+    c(`swapping ${node.name}`)
     for (const [property, value] of Object.entries(node.boundVariables)) {
       // Complex immutable properties
       if (Array.isArray(value)) {
@@ -87,7 +94,6 @@ async function swap(libs: Libs, nodes) {
           node.setBoundVariable(property, newVariable.id)
           count++
         }
-
       }
     }
 
@@ -98,13 +104,31 @@ async function swap(libs: Libs, nodes) {
   }
 }
 
+function recursiveCount(nodes) {
+  nodesCount++
+  for (const node of nodes) {
+    if (node.children && node.children.length > 0) {
+      recursiveCount(node.children)
+    }
+  }
+}
+
 async function swapComplex(node, property: string, libs: Libs) {
 
   let setBoundVarible
   switch (property) {
     case 'fills':
-    case 'strokes':
       setBoundVarible = figma.variables.setBoundVariableForPaint
+      break
+    case 'strokes':
+      if (node.type === 'SECTION') {
+        // Strokes are not supported for sections with Figma Plugin API
+        // https://forum.figma.com/t/why-are-strokes-not-available-on-section-nodes/41658
+        error('unsupported', { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
+        return
+      }
+      else
+        setBoundVarible = figma.variables.setBoundVariableForPaint
       break
     case 'layoutGrids':
       setBoundVarible = figma.variables.setBoundVariableForLayoutGrid
@@ -114,10 +138,10 @@ async function swapComplex(node, property: string, libs: Libs) {
       break
     case 'textRangeFills':
     case 'textRangeStrokes':
-      error('mixed', { nodeName: node.name })
+      error('mixed', { nodeName: node.name, nodeId: node.id })
       return
     default:
-      error('badProp', { property: property, nodeName: node.name })
+      error('badProp', { property: property, nodeName: node.name, nodeId: node.id })
       return
   }
 
@@ -151,7 +175,7 @@ async function getNewVariable(variable, libs: Libs, node) {
     if (resolvedType === 'COLOR') {
       value = figmaRGBToHex(value)
     }
-    error('noMatch', { name: variable.name, type: resolvedType, value: value })
+    error('noMatch', { name: variable.name, type: resolvedType, value: value, nodeId: node.id })
   }
 
   return newVariable || variable
@@ -168,7 +192,7 @@ function getCollectionId(variable) {
   return figma.variables.getVariableById(variableId).variableCollectionId
 }
 
-function error(type: 'noMatch' | 'mixed' | 'badProp', options) {
+function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
   if (!errors[type])
     errors[type] = new Array()
 
@@ -183,6 +207,10 @@ function error(type: 'noMatch' | 'mixed' | 'badProp', options) {
         return
       break
     case 'badProp':
+      if (errors[type].findIndex(el => el.nodeName === options.nodeName && el.property === options.property) >= 0)
+        return
+      break
+    case 'unsupported':
       if (errors[type].findIndex(el => el.nodeName === options.nodeName && el.property === options.property) >= 0)
         return
       break
@@ -228,5 +256,20 @@ function cancel() {
     notification.cancel()
   if (working) {
     notify("Plugin work have been interrupted")
+  }
+}
+
+function c(str: string, type?) {
+  if (!logs)
+    return
+  switch (type) {
+    case 'error':
+      console.error(str)
+      break
+    case 'warn':
+      console.warn(str)
+      break
+    default:
+      console.log(str)
   }
 }

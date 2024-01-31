@@ -35,6 +35,14 @@
         background-color: var(--figma-color-bg);
     }
 
+    :root.figma-light {
+        --vk-color-accent-themed: #4586e4;
+    }
+
+    :root.figma-dark {
+        --vk-color-accent-themed: #ffffff;
+    }
+
 
     * {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -148,7 +156,7 @@
 
     button.primary {
         width: 100%;
-        background: var(--figma-color-bg-inverse);
+        background: var(--vk-color-accent-themed);
         color: var(--figma-color-bg-secondary);
         opacity: 1;
     }
@@ -159,7 +167,7 @@
     }
 
     .figma-light button.primary {
-        box-shadow: 4px 4px 8px 0px rgba(255, 255, 255, 0.10) inset, -2px -2px 4px 0px rgba(0, 0, 0, 0.25) inset, 0px 16px 16px -8px rgba(49, 49, 49, 0.25);
+        box-shadow: 4px 4px 8px 0px rgba(255, 255, 255, 0.10) inset, -4px -4px 8px 0px rgba(0, 0, 0, 0.05) inset, 0px 16px 16px -8px rgba(38, 136, 235, 0.25);
     }
 
     button.secondary {
@@ -196,13 +204,20 @@
         display: flex;
         display: none;
         flex-direction: column;
-        gap: var(--gap-m);
+        gap: var(--gap-xs);
     }
 
     .errors li {
         display: flex;
         font-size: var(--font-size-s);
-        margin-left: var(--gap-m);
+        padding: var(--gap-s) var(--gap-m);
+        transition: background-color var(--transition-rule);
+        cursor: pointer;
+        border-radius: var(--radius-s);
+    }
+
+    .errors li:hover {
+        background: var(--figma-color-bg-hover);
     }
 
     .errors li p {
@@ -264,6 +279,9 @@
             <ul class="bad-prop">
                 <h3>Bad properties</h3>
             </ul>
+            <ul class="unsupported">
+                <h3>Unsupported by Plugin API</h3>
+            </ul>
         </div>
     </form>
 </div>
@@ -277,7 +295,8 @@
     const lists = {
         noMatch: errorsEl.querySelector('ul.no-match'),
         mixed: errorsEl.querySelector('ul.mixed'),
-        badProp: errorsEl.querySelector('ul.bad-prop')
+        badProp: errorsEl.querySelector('ul.bad-prop'),
+        unsupported: errorsEl.querySelector('ul.unsupported')
     }
 
 
@@ -316,7 +335,7 @@
                 }
             }
         }, '*')
-        reverseSelects()
+        // reverseSelects()
         clearErrors()
     }
 
@@ -355,7 +374,9 @@
         const errorCount = Object.values(errorsObj).reduce((acc, err) => acc + err.length, 0)
         if (errorCount === 0) return
 
-
+        const mixedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><g opacity=".9"><path fill="currentColor" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z"/><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke"/></g></svg>`
+        const badPropSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4v5" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M8 12.33A.67.67 0 1 0 8 11a.67.67 0 0 0 0 1.33Z"/></svg>`
+        const unsupportedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M6 11.33a3.35 3.35 0 0 1 4 0" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M10 8c.37 0 .67-.45.67-1s-.3-1-.67-1c-.37 0-.67.45-.67 1s.3 1 .67 1ZM6 8c.37 0 .67-.45.67-1S6.37 6 6 6c-.37 0-.67.45-.67 1s.3 1 .67 1Z"/></svg>`
 
         heading.textContent = errorCount + ' error' + (errorCount === 1 ? '' : 's')
         errorsEl.style.display = 'flex'
@@ -384,17 +405,30 @@
                             }
                             break
                         case 'mixed':
-                            errorText = error.nodeName + ' has mixed fills'
-                            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><g opacity=".9"><path fill="#313131" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z"/><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke"/></g></svg>`
+                            errorText = `${error.nodeName} has mixed fills`
+                            icon.innerHTML = mixedSVG
                             break
                         case 'bad-prop':
-                            errorText = 'Can\'t replace ' + error.property + ' of ' + error.nodeName
-                            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4.67v4" vector-effect="non-scaling-stroke"/><path fill="#000" d="M8 11.33A.67.67 0 1 0 8 10a.67.67 0 0 0 0 1.33Z"/></svg>`
+                            errorText = `Can't replace ${error.property} of ${error.nodeName}`
+                            icon.innerHTML = badPropSVG
+                            break
+                        case 'unsupported':
+                            errorText = `Can't replace ${error.property} of ${error.type.toLowerCase()} ${error.nodeName}`
+                            icon.innerHTML = unsupportedSVG
                             break
                     }
                     const text = document.createElement('p')
                     text.textContent = errorText
                     const listItem = document.createElement('li')
+                    listItem.onclick = (event) => {
+                        parent.postMessage({
+                            pluginMessage: {
+                                type: 'goToNode', message: {
+                                    nodeId: error.nodeId
+                                }
+                            }
+                        }, '*')
+                    }
                     listItem.appendChild(text)
                     listItem.appendChild(icon)
                     lists[key].appendChild(listItem)
