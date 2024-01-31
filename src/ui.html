@@ -176,6 +176,19 @@
         border: 1px solid var(--figma-color-border);
     }
 
+    a {
+        margin: 0 auto;
+        color: var(--figma-color-text-tertiary);
+        text-decoration-color: transparent;
+        text-underline-offset: 4px;
+
+        transition: text-decoration-color var(--transition-rule);
+    }
+
+    a:hover {
+        text-decoration-color: var(--figma-color-text-tertiary);
+    }
+
     svg {
         color: var(--figma-color-icon);
     }
@@ -268,6 +281,7 @@
             </button>
             <button type="submit" class="primary">Swap Variables</button>
         </div>
+        <a target="_top" href="mailto:nick.denq@gmail.com?subject=Swap%20Variables">Send feedback</a>
         <div class="errors">
             <h2>0 errors</h2>
             <ul class="no-match">
@@ -325,12 +339,14 @@
                     from: {
                         lib: from.dataset.lib,
                         collection: from.dataset.collection,
-                        key: from.dataset.key
+                        key: from.dataset.key,
+                        local: from.dataset.local || false
                     },
                     to: {
                         lib: to.dataset.lib,
                         collection: to.dataset.collection,
-                        key: to.dataset.key
+                        key: to.dataset.key,
+                        local: from.dataset.local || false
                     }
                 }
             }
@@ -363,6 +379,7 @@
                 option.dataset.lib = lib
                 option.dataset.collection = collection.name
                 option.dataset.key = collection.key
+                option.dataset.local = collection.local
                 optgroup.appendChild(option)
             }
             selectFrom.appendChild(optgroup)

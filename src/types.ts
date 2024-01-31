@@ -2,12 +2,14 @@ export interface Libs {
     from: {
         lib: string,
         collection: string,
-        key: string
+        key: string,
+        local?: boolean
     },
     to: {
         lib: string,
         collection: string,
-        key: string
+        key: string,
+        local?: boolean
     }
 }
 

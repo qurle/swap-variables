@@ -1,9 +1,12 @@
+const LOGS = false
+
 import { Libs, Errors } from './types'
 import { figmaRGBToHex } from './utils'
 
 // Constants
 const actionMsgs = ["Swapped", "Affected", "Made it with", "Fixed", "Updated"]
-const idleMsgs = ["All great, already", "Nothing to do, everything's good", "Any layers to affect? Can't see it", "Nothing to do, your layers are great"]
+const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
+const uiSize = { width: 300, height: 300 }
 
 // Variables
 let notification: NotificationHandler
@@ -16,14 +19,13 @@ let errors: Errors = {
   badProp: [],
   unsupported: []
 }
-let logs = true
 let nodesCount: number = 0
 
 // Cancel on page change
 figma.on("currentpagechange", cancel)
 
 // Connect with UI
-figma.showUI(__html__, { themeColors: true, width: 300, height: 280, })
+figma.showUI(__html__, { themeColors: true, width: uiSize.width, height: uiSize.height, })
 figma.ui.onmessage = async (msg) => {
   switch (msg.type) {
     case 'swap':
@@ -37,6 +39,7 @@ figma.ui.onmessage = async (msg) => {
 
       count = 0
 
+      notify('Working...')
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
@@ -66,17 +69,19 @@ async function run(node: SceneNode | PageNode) {
 }
 
 async function getLibraries() {
-  const localCollections = figma.variables.getLocalVariableCollections().filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name }))
-  const libraries = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
+  const localCollections = figma.variables.getLocalVariableCollections().filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name, local: true }))
+  const allExternalCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
 
   // Non empty collections
   const externalCollections = []
-  for (const library of libraries) {
+  for (const library of allExternalCollections) {
     if ((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(library.key)).length > 0) {
       externalCollections.push(library)
     }
   }
-  return [...externalCollections, ...localCollections]
+  const collections = [...externalCollections, ...localCollections]
+  console.log(collections)
+  return collections
 }
 
 async function swap(libs: Libs, nodes) {
@@ -91,6 +96,10 @@ async function swap(libs: Libs, nodes) {
       else {
         const newVariable = await getNewVariable(value as Variable, libs, node)
         if (newVariable) {
+          if (node.type === 'TEXT' && newVariable.resolvedType === 'FLOAT') {
+            error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
+            break
+          }
           node.setBoundVariable(property, newVariable.id)
           count++
         }
@@ -147,28 +156,35 @@ async function swapComplex(node, property: string, libs: Libs) {
 
 
   node[property] = await Promise.all(
-    node[property].map(async (paint) => {
-      for (const [field, variable] of Object.entries(paint.boundVariables)) {
+    node[property].map(async (layer) => {
+      if (Object.entries(layer.boundVariables).length === 0)
+        return layer
+
+      for (const [field, variable] of Object.entries(layer.boundVariables)) {
         const newVariable = await getNewVariable(variable, libs, node)
         if (newVariable) {
+          c('Bounding to')
+          c(layer)
+          c(newVariable)
           count++
-          return setBoundVarible(paint, field, newVariable)
+          return setBoundVarible(layer, field, newVariable)
         }
-        return paint
+        return layer
       }
     }))
 }
 
 async function getNewVariable(variable, libs: Libs, node) {
-  // Assuring we have full variable object
   variable = figma.variables.getVariableById(variable.id)
-  if (!getCollectionId(variable).includes(libs.from.key))
+  if (getCollectionKey(variable) !== libs.from.key)
     return
-
 
   let newVariable
   try {
-    newVariable = await findVariable(libs.to.key, variable)
+    newVariable = await findVariable(libs.to, variable,)
+    c(`New variable`)
+    c(newVariable)
+
   }
   catch {
     let { value, resolvedType } = variable.resolveForConsumer(node)
@@ -181,15 +197,20 @@ async function getNewVariable(variable, libs: Libs, node) {
   return newVariable || variable
 }
 
-async function findVariable(libKey, variable) {
+async function findVariable(lib, variable) {
+  c(`Looking for new ${variable.name} at ${lib.key}`)
   const name = variable.name
-  const newVariable = await figma.variables.importVariableByKeyAsync((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libKey)).find(el => el.name === name).key)
+  c(lib)
+  const newVariable = lib.local === 'true' ?
+    figma.variables.getVariableById(figma.variables.getLocalVariableCollections().find(c => c.key === lib.key).variableIds.find(vId => figma.variables.getVariableById(vId).name === variable.name)) :
+    await figma.variables.importVariableByKeyAsync((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lib.key)).find(el => el.name === name).key)
   return newVariable
 }
 
-function getCollectionId(variable) {
+function getCollectionKey(variable) {
   const variableId = (typeof variable === 'string') ? variable : variable.id
-  return figma.variables.getVariableById(variableId).variableCollectionId
+  const collectionId = figma.variables.getVariableById(variableId).variableCollectionId
+  return figma.variables.getVariableCollectionById(collectionId).key
 }
 
 function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
@@ -226,9 +247,9 @@ function finish() {
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
   if (errorCount > 0)
-    figma.ui.resize(310, 360)
+    figma.ui.resize(uiSize.width + 16, uiSize.height + 60)
   else
-    figma.ui.resize(300, 280)
+    figma.ui.resize(uiSize.width, uiSize.height)
 
   working = false
   figma.root.setRelaunchData({ relaunch: '' })
@@ -259,8 +280,8 @@ function cancel() {
   }
 }
 
-function c(str: string, type?) {
-  if (!logs)
+function c(str: any = 'here', type?) {
+  if (!LOGS)
     return
   switch (type) {
     case 'error':
