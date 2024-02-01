@@ -1,4 +1,4 @@
-const LOGS = false
+const LOGS = true
 
 import { Libs, Errors } from './types'
 import { figmaRGBToHex } from './utils'
@@ -50,10 +50,12 @@ figma.ui.onmessage = async (msg) => {
       nodes.forEach(node => { node.setRelaunchData({ relaunch: '' }) })
       finish()
       break
+
     case 'goToNode': {
       figma.viewport.scrollAndZoomIntoView([figma.getNodeById(msg.message.nodeId)])
       break
     }
+
     case 'finished': // Real plugin finish (after server's last response)
       figma.closePlugin()
   }
@@ -125,8 +127,13 @@ function recursiveCount(nodes) {
 async function swapComplex(node, property: string, libs: Libs) {
 
   let setBoundVarible
+  c('swapping complex ' + property)
   switch (property) {
     case 'fills':
+      if (node[property].toString() === `Symbol(figma.mixed)`) {
+        error('mixed', { nodeName: node.name, nodeId: node.id })
+        return
+      }
       setBoundVarible = figma.variables.setBoundVariableForPaint
       break
     case 'strokes':
@@ -147,6 +154,7 @@ async function swapComplex(node, property: string, libs: Libs) {
       break
     case 'textRangeFills':
     case 'textRangeStrokes':
+      c(property)
       error('mixed', { nodeName: node.name, nodeId: node.id })
       return
     default:

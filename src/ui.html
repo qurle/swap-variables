@@ -263,13 +263,16 @@
             <label for="from">Source</label>
             <div class="select-wrapper">
                 <select id="from" name="from">
+                    <option>Loading...</option>
                 </select>
             </div>
         </div>
         <div>
             <label for="to">Swap to</label>
             <div class="select-wrapper">
-                <select id="to" name="to"></select>
+                <select id="to" name="to">
+                    <option>Loading...</option>
+                </select>
             </div>
         </div>
         <div class="buttons">
@@ -281,7 +284,7 @@
             </button>
             <button type="submit" class="primary">Swap Variables</button>
         </div>
-        <a target="_top" href="mailto:nick.denq@gmail.com?subject=Swap%20Variables">Send feedback</a>
+        <a target="_top" href="mailto:nikita.denisov@vk.team?subject=Swap%20Variables">Send feedback</a>
         <div class="errors">
             <h2>0 errors</h2>
             <ul class="no-match">
@@ -382,6 +385,8 @@
                 option.dataset.local = collection.local
                 optgroup.appendChild(option)
             }
+            selectFrom.innerHTML = ''
+            selectTo.innerHTML = ''
             selectFrom.appendChild(optgroup)
             selectTo.appendChild(optgroup.cloneNode(true))
         }
