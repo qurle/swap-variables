@@ -263,7 +263,7 @@
             <label for="from">Source</label>
             <div class="select-wrapper">
                 <select id="from" name="from">
-                    <option>Loading...</option>
+                    <option class="stub">Loading...</option>
                 </select>
             </div>
         </div>
@@ -271,7 +271,7 @@
             <label for="to">Swap to</label>
             <div class="select-wrapper">
                 <select id="to" name="to">
-                    <option>Loading...</option>
+                    <option class="stub">Loading...</option>
                 </select>
             </div>
         </div>
@@ -385,11 +385,11 @@
                 option.dataset.local = collection.local
                 optgroup.appendChild(option)
             }
-            selectFrom.innerHTML = ''
-            selectTo.innerHTML = ''
             selectFrom.appendChild(optgroup)
             selectTo.appendChild(optgroup.cloneNode(true))
         }
+        selectFrom.removeChild(selectFrom.querySelector('option.stub'))
+        selectTo.removeChild(selectTo.querySelector('option.stub'))
     }
 
     function showErrors(errorsObj) {

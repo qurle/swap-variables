@@ -26,6 +26,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 
 ## Known limitations
 
+- If you modified external libraries, reload page to apply changes.
 - Plugin can't swap styles. API for styles is very poor. Use [Swap Libraries](https://help.figma.com/hc/en-us/articles/4404856784663-Swap-style-and-component-libraries) instead.
 - Plugin can't swap variable in text with mixed fills. Do it manually instead.
 - Plugin can't swap strokes in section. API doesn't allow to work with them. Do it manually instead.
@@ -44,7 +45,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 
 ## Problem? Idea? Kind words?
 
-I accept feature suggestions and ideas to improve the plugin. No need to mess with huden layers? Swap all pages at once? Useful exceptions? If you have any ideas or issues, let me know in the comments.
+I accept feature suggestions and ideas to improve the plugin. No need to mess with hid`den layers? Swap all pages at once? Useful exceptions? If you have any ideas or issues, let me know in the comments.
 
 Alternatively you can contact me via e-mail at [nikita.denisov@vk.team](mailto:nikita.denisov@vk.team?subject=Swap%20Variables) and [Telegram](https://t.me/qurle).
 
