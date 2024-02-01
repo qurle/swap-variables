@@ -1,5 +1,5 @@
 # Swap Variables for Figma
-Just like Swap Libraries, but for variables
+Just like Swap Libraries, but for variables.
 
 ![Swap Variables cover](https://github.com/qurle/swap-variables/blob/main/assets/cover.png?raw=true)
 
@@ -46,6 +46,6 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 
 I accept feature suggestions and ideas to improve the plugin. No need to mess with huden layers? Swap all pages at once? Useful exceptions? If you have any ideas or issues, let me know in the comments.
 
-Alternatively you can contact me via e-mail at [nikita.denisov@vk.team](mailto:nikita.denisov@vk.team?subject=Swap%20Variables) and [Telegram](http://t.me/qurle).
+Alternatively you can contact me via e-mail at [nikita.denisov@vk.team](mailto:nikita.denisov@vk.team?subject=Swap%20Variables) and [Telegram](https://t.me/qurle).
 
 ## <3
