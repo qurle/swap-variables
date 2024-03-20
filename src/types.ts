@@ -3,12 +3,14 @@ export interface Libs {
         lib: string,
         collection: string,
         key: string,
+        id?: string,
         local?: boolean
     },
     to: {
         lib: string,
         collection: string,
         key: string,
+        id?: string,
         local?: boolean
     }
 }

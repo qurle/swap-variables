@@ -9,6 +9,7 @@
   "permissions": [
     "teamlibrary"
   ],
+  "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
       "https://fonts.googleapis.com",

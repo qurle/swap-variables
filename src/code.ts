@@ -1,4 +1,4 @@
-const LOGS = true
+const LOGS = false
 
 import { Libs, Errors } from './types'
 import { figmaRGBToHex } from './utils'
@@ -52,7 +52,7 @@ figma.ui.onmessage = async (msg) => {
       break
 
     case 'goToNode': {
-      figma.viewport.scrollAndZoomIntoView([figma.getNodeById(msg.message.nodeId)])
+      figma.viewport.scrollAndZoomIntoView([await figma.getNodeByIdAsync(msg.message.nodeId)])
       break
     }
 
@@ -63,6 +63,7 @@ figma.ui.onmessage = async (msg) => {
 
 // Engine start
 figma.ui.postMessage("started")
+console.clear()
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
@@ -71,14 +72,16 @@ async function run(node: SceneNode | PageNode) {
 }
 
 async function getLibraries() {
-  const localCollections = figma.variables.getLocalVariableCollections().filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name, local: true }))
+  const localCollections = (await figma.variables.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name, id: el.id, local: true }))
   const allExternalCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
 
   // Non empty collections
   const externalCollections = []
   for (const library of allExternalCollections) {
-    if ((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(library.key)).length > 0) {
+    const variables = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(library.key)
+    if (variables.length > 0) {
       externalCollections.push(library)
+      library['id'] = (await figma.variables.importVariableByKeyAsync(variables[0].key)).id
     }
   }
   const collections = [...externalCollections, ...localCollections]
@@ -96,13 +99,14 @@ async function swap(libs: Libs, nodes) {
       }
       // Simple properties
       else {
+        c(`swapping ${property}`)
         const newVariable = await getNewVariable(value as Variable, libs, node)
         if (newVariable) {
           if (node.type === 'TEXT' && newVariable.resolvedType === 'FLOAT') {
             error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
             break
           }
-          node.setBoundVariable(property, newVariable.id)
+          node.setBoundVariable(property, newVariable)
           count++
         }
       }
@@ -154,14 +158,13 @@ async function swapComplex(node, property: string, libs: Libs) {
       break
     case 'textRangeFills':
     case 'textRangeStrokes':
-      c(property)
-      error('mixed', { nodeName: node.name, nodeId: node.id })
+      c(`skipping ${property}`)
+      // error('mixed', { nodeName: node.name, nodeId: node.id })
       return
     default:
       error('badProp', { property: property, nodeName: node.name, nodeId: node.id })
       return
   }
-
 
   node[property] = await Promise.all(
     node[property].map(async (layer) => {
@@ -171,54 +174,47 @@ async function swapComplex(node, property: string, libs: Libs) {
       for (const [field, variable] of Object.entries(layer.boundVariables)) {
         const newVariable = await getNewVariable(variable, libs, node)
         if (newVariable) {
-          c('Bounding to')
-          c(layer)
-          c(newVariable)
-          count++
-          return setBoundVarible(layer, field, newVariable)
+          layer = setBoundVarible(layer, field, newVariable)
         }
-        return layer
       }
+      return layer
     }))
 }
 
 async function getNewVariable(variable, libs: Libs, node) {
-  variable = figma.variables.getVariableById(variable.id)
-  if (getCollectionKey(variable) !== libs.from.key)
+  const variableObject = await figma.variables.getVariableByIdAsync(variable.id)
+
+  if (variableObject.variableCollectionId !== libs.from.id)
     return
 
   let newVariable
   try {
-    newVariable = await findVariable(libs.to, variable,)
-    c(`New variable`)
-    c(newVariable)
-
+    newVariable = await findVariable(libs.to, variableObject)
   }
   catch {
-    let { value, resolvedType } = variable.resolveForConsumer(node)
+    let { value, resolvedType } = variableObject.resolveForConsumer(node)
     if (resolvedType === 'COLOR') {
-      value = figmaRGBToHex(value)
+      value = figmaRGBToHex(value as RGB | RGBA)
     }
-    error('noMatch', { name: variable.name, type: resolvedType, value: value, nodeId: node.id })
+    error('noMatch', { name: variableObject.name, type: resolvedType, value: value, nodeId: node.id })
   }
 
-  return newVariable || variable
+  return newVariable || variableObject
 }
 
 async function findVariable(lib, variable) {
-  c(`Looking for new ${variable.name} at ${lib.key}`)
   const name = variable.name
-  c(lib)
+  // IT BREAKS HERE
   const newVariable = lib.local === 'true' ?
-    figma.variables.getVariableById(figma.variables.getLocalVariableCollections().find(c => c.key === lib.key).variableIds.find(vId => figma.variables.getVariableById(vId).name === variable.name)) :
+    (await figma.variables.getLocalVariablesAsync()).filter(el => el.variableCollectionId === lib.id).find(el => el.name === variable.name) :
     await figma.variables.importVariableByKeyAsync((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lib.key)).find(el => el.name === name).key)
   return newVariable
 }
 
-function getCollectionKey(variable) {
+async function getCollectionKey(variable) {
   const variableId = (typeof variable === 'string') ? variable : variable.id
-  const collectionId = figma.variables.getVariableById(variableId).variableCollectionId
-  return figma.variables.getVariableCollectionById(collectionId).key
+  const collectionId = (await figma.variables.getVariableByIdAsync(variableId)).variableCollectionId
+  return (await figma.variables.getVariableCollectionByIdAsync(collectionId)).key
 }
 
 function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {

@@ -1,19 +1,19 @@
 {
-  "name": "plugin-name",
+  "name": "swap-variables",
   "version": "1.0.0",
-  "description": "insert your description",
+  "description": "figma plugin for swapping variables with same name from different collections",
   "main": "code.js",
   "scripts": {
     "build": "webpack",
     "watch": "npm run build -- --watch"
   },
-  "author": "your precious name",
+  "author": "Nikita Denisov",
   "license": "",
   "devDependencies": {
-    "@figma/plugin-typings": "^1.85.0",
+    "@figma/plugin-typings": "^1.87.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.3",
-    "webpack": "^5.90.0",
+    "webpack": "^5.90.3",
     "webpack-cli": "^5.1.4"
   }
 }

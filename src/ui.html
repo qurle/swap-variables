@@ -343,12 +343,14 @@
                         lib: from.dataset.lib,
                         collection: from.dataset.collection,
                         key: from.dataset.key,
+                        id: from.dataset.id,
                         local: from.dataset.local || false
                     },
                     to: {
                         lib: to.dataset.lib,
                         collection: to.dataset.collection,
                         key: to.dataset.key,
+                        id: to.dataset.id,
                         local: from.dataset.local || false
                     }
                 }
@@ -382,6 +384,7 @@
                 option.dataset.lib = lib
                 option.dataset.collection = collection.name
                 option.dataset.key = collection.key
+                option.dataset.id = collection.id
                 option.dataset.local = collection.local
                 optgroup.appendChild(option)
             }
