@@ -344,14 +344,14 @@
                         collection: from.dataset.collection,
                         key: from.dataset.key,
                         id: from.dataset.id,
-                        local: from.dataset.local || false
+                        local: from.dataset.local === 'true'
                     },
                     to: {
                         lib: to.dataset.lib,
                         collection: to.dataset.collection,
                         key: to.dataset.key,
                         id: to.dataset.id,
-                        local: from.dataset.local || false
+                        local: to.dataset.local === 'true'
                     }
                 }
             }
