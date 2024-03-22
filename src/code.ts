@@ -321,6 +321,7 @@ function showTimers() {
   swappingComplexTime = 0
   boundingComplexTime = 0
   findingTime = 0
+  layers = 0
 }
 
 function c(str: any = 'here', type?) {
