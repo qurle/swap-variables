@@ -1,4 +1,5 @@
-const LOGS = true
+const LOGS = false
+const TIMERS = false
 
 import { Libs, Errors } from './types'
 import { figmaRGBToHex } from './utils'
@@ -7,6 +8,8 @@ import { figmaRGBToHex } from './utils'
 const actionMsgs = ["Swapped", "Affected", "Made it with", "Fixed", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const uiSize = { width: 300, height: 300 }
+let times = new Map()
+let addTimes = new Map()
 
 // Variables
 let notification: NotificationHandler
@@ -20,13 +23,13 @@ let errors: Errors = {
   unsupported: []
 }
 let gotErrors = false
-let nodesCount: number = 0
 
 // Cancel on page change
 figma.on("currentpagechange", cancel)
 
 // Connect with UI
 figma.showUI(__html__, { themeColors: true, width: uiSize.width, height: uiSize.height, })
+
 figma.ui.onmessage = async (msg) => {
   switch (msg.type) {
     case 'swap':
@@ -40,15 +43,16 @@ figma.ui.onmessage = async (msg) => {
 
       count = 0
 
-      notify('Working...')
+      notification = figma.notify('Working...', { timeout: Infinity })
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
-      nodesCount = 0
-      recursiveCount(nodes)
-
       await swap(msg.message, nodes)
-      nodes.forEach(node => { node.setRelaunchData({ relaunch: '' }) })
+      nodes.forEach(node => {
+        node.setRelaunchData({ relaunch: '' })
+        node.setPluginData('currentLibKey', msg.message.to.key)
+      })
+
       finish()
       break
 
@@ -56,24 +60,32 @@ figma.ui.onmessage = async (msg) => {
       figma.viewport.scrollAndZoomIntoView([await figma.getNodeByIdAsync(msg.message.nodeId)])
       break
     }
-
-    case 'finished': // Real plugin finish (after server's last response)
-      figma.closePlugin()
   }
 }
 
 // Engine start
 figma.ui.postMessage("started")
-console.clear()
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
   libraries = await getLibraries()
-  figma.ui.postMessage({ type: 'libs', message: libraries })
+
+  time('Getting current lib')
+  const selection = figma.currentPage.selection
+  const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
+  let currentLibKey = nodes[0].getPluginData('currentLibKey')
+  currentLibKey = nodes.every((el) => el.getPluginData('currentLibKey') === currentLibKey) ? currentLibKey : null
+  timeEnd('Getting current lib')
+
+  figma.ui.postMessage({ type: 'libs', message: { libs: libraries, current: currentLibKey } })
 }
 
 async function getLibraries() {
+  time('Getting internal libs')
   const localCollections = (await figma.variables.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name, id: el.id, local: true }))
+  timeEnd('Getting internal libs')
+
+  time('Getting external libs')
   const allExternalCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
 
   // Non empty collections
@@ -86,11 +98,14 @@ async function getLibraries() {
       library['local'] = false
     }
   }
+  timeEnd('Getting external libs')
+
   const collections = [...externalCollections, ...localCollections]
   c(collections)
   return collections
 }
 
+let swappingSimpleTime = 0
 async function swap(libs: Libs, nodes) {
   c(`Libs to swap ↴`)
   c(libs)
@@ -100,10 +115,10 @@ async function swap(libs: Libs, nodes) {
       // Complex immutable properties
       if (Array.isArray(value)) {
         await swapComplex(node, property, libs)
-        count++
       }
       // Simple properties
       else {
+        time('Swapping simple')
         c(`swapping ${property}`)
         const newVariable = await getNewVariable(value as Variable, libs, node)
         if (newVariable) {
@@ -112,8 +127,8 @@ async function swap(libs: Libs, nodes) {
             break
           }
           node.setBoundVariable(property, newVariable)
-          count++
         }
+        swappingSimpleTime = timeEnd('Swapping simple', false)
       }
     }
 
@@ -124,17 +139,11 @@ async function swap(libs: Libs, nodes) {
   }
 }
 
-function recursiveCount(nodes) {
-  nodesCount++
-  for (const node of nodes) {
-    if (node.children && node.children.length > 0) {
-      recursiveCount(node.children)
-    }
-  }
-}
-
+let swappingComplexTime = 0
+let boundingComplexTime = 0
+let layers = 0
 async function swapComplex(node, property: string, libs: Libs) {
-
+  time('Swapping complex')
   let setBoundVarible
   c('swapping complex ' + property)
   switch (property) {
@@ -173,6 +182,7 @@ async function swapComplex(node, property: string, libs: Libs) {
 
   node[property] = await Promise.all(
     node[property].map(async (layer) => {
+      layers++
       c(`Found ${Object.entries(layer.boundVariables).length} variables`)
       if (Object.entries(layer.boundVariables).length === 0)
         return layer
@@ -181,11 +191,16 @@ async function swapComplex(node, property: string, libs: Libs) {
         const newVariable = await getNewVariable(variable, libs, node)
         if (newVariable) {
           c('found new variable')
+          time('Bounding complex')
           layer = setBoundVarible(layer, field, newVariable)
+          boundingComplexTime += timeEnd('Bounding complex', false)
+
         }
       }
       return layer
     }))
+  swappingComplexTime += timeEnd('Swapping complex', false)
+
 }
 
 async function getNewVariable(variable, libs: Libs, node) {
@@ -198,6 +213,7 @@ async function getNewVariable(variable, libs: Libs, node) {
   let newVariable
   try {
     newVariable = await findVariable(libs.to, variableObject)
+    count++
   }
   catch {
     let { value, resolvedType } = variableObject.resolveForConsumer(node)
@@ -210,26 +226,18 @@ async function getNewVariable(variable, libs: Libs, node) {
   return newVariable || variableObject
 }
 
+let findingTime = 0
 async function findVariable(lib, variable) {
+  time('Finding')
   const name = variable.name
   c(`Is local: ${lib.local}`)
-  c(`Seeking ${name} among here ↴`)
-  c(lib.local === true ?
-    await figma.variables.getLocalVariablesAsync() :
-    await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lib.key))
 
-  // IT BREAKS HERE
   const newVariable = lib.local === true ?
-    (await figma.variables.getLocalVariablesAsync()).filter(el => el.variableCollectionId === lib.id).find(el => el.name === variable.name) :
+    (await figma.variables.getLocalVariablesAsync()).find(el => el.variableCollectionId === lib.id && el.name === variable.name) :
     await figma.variables.importVariableByKeyAsync((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lib.key)).find(el => el.name === name).key)
   c(`Found new ${newVariable.name} with id ${newVariable.id}`)
+  findingTime += timeEnd('Finding', false)
   return newVariable
-}
-
-async function getCollectionKey(variable) {
-  const variableId = (typeof variable === 'string') ? variable : variable.id
-  const collectionId = (await figma.variables.getVariableByIdAsync(variableId)).variableCollectionId
-  return (await figma.variables.getVariableCollectionByIdAsync(collectionId)).key
 }
 
 function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
@@ -263,6 +271,8 @@ function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
 
 // Ending the work
 function finish() {
+  showTimers()
+  figma.ui.postMessage({ type: 'finish' })
   figma.ui.postMessage({ type: 'errors', message: errors })
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
@@ -272,7 +282,6 @@ function finish() {
     figma.ui.resize(uiSize.width, uiSize.height)
 
   working = false
-  figma.root.setRelaunchData({ relaunch: '' })
   if (count > 0) {
     notify(actionMsgs[Math.floor(Math.random() * actionMsgs.length)] +
       " " + (count + " variable") + (count === 1 ? "." : "s.") +
@@ -300,6 +309,20 @@ function cancel() {
   }
 }
 
+function showTimers() {
+  console.log(`⏱️ Swapping simple: ${swappingSimpleTime}`)
+  console.log(`⏱️ Bounding complex: ${boundingComplexTime}`)
+  console.log(`Time per layer: ${Math.round(boundingComplexTime / layers)}`)
+  console.log(`⏱️ Swapping complex: ${swappingComplexTime}`)
+  console.log(`Time per layer: ${Math.round(swappingComplexTime / layers)}`)
+  console.log(`⏱️ Finding: ${findingTime}`)
+  console.log(`Time per variable: ${Math.round(findingTime / count)}`)
+  swappingSimpleTime = 0
+  swappingComplexTime = 0
+  boundingComplexTime = 0
+  findingTime = 0
+}
+
 function c(str: any = 'here', type?) {
   if (!LOGS)
     return
@@ -314,3 +337,21 @@ function c(str: any = 'here', type?) {
       console.log(str)
   }
 }
+
+function time(str) {
+  if (!TIMERS) return
+
+  const time = Date.now()
+  times.set(str, time)
+  return time
+}
+
+function timeEnd(str, show = true) {
+  if (!TIMERS) return
+
+  const time = Date.now() - times.get(str)
+  if (show) console.log(`⏱️ ${str}: ${time} ms`)
+  times.delete(str)
+  return time
+}
+

@@ -161,6 +161,17 @@
         opacity: 1;
     }
 
+    button.primary:disabled {
+        animation: loading 1000ms ease-in-out 0 infinite alternate;
+    }
+
+    @keyframes loading {
+        to {
+            opacity: 0;
+        }
+    }
+
+
     button.primary:hover {
         transition: opacity var(--transition-rule), box-shadow var(--transition-rule);
         opacity: 0.95;
@@ -303,18 +314,24 @@
     </form>
 </div>
 <script>
+    console.time('Query selecting')
     const form = document.querySelector('form')
     const selectFrom = form.querySelector('select[name=from]')
     const selectTo = form.querySelector('select[name=to]')
     const reverse = form.querySelector('button.reverse')
     const errorsEl = document.querySelector('.errors')
     const heading = errorsEl.querySelector('h2')
+    const submit = form.querySelector('button[type=submit]')
+    const loader = document.querySelector('.loader')
+
     const lists = {
         noMatch: errorsEl.querySelector('ul.no-match'),
         mixed: errorsEl.querySelector('ul.mixed'),
         badProp: errorsEl.querySelector('ul.bad-prop'),
         unsupported: errorsEl.querySelector('ul.unsupported')
     }
+
+    console.timeEnd('Query selecting')
 
 
     window.onmessage = async (event) => {
@@ -323,7 +340,10 @@
 
         switch (type) {
             case 'libs':
-                fillLibs(message)
+                fillLibs(message.libs, message.current)
+                break
+            case 'finish':
+                finish()
                 break
             case 'errors':
                 showErrors(message)
@@ -332,7 +352,13 @@
     }
 
     form.onsubmit = (event) => {
+        console.time('Submitting')
         event.preventDefault()
+        clearErrors()
+
+        submit.disabled = true
+        submit.innerText = 'Swapping...'
+
         const from = selectFrom.selectedOptions[0]
         const to = selectTo.selectedOptions[0]
 
@@ -356,8 +382,8 @@
                 }
             }
         }, '*')
-        // reverseSelects()
-        clearErrors()
+        console.timeEnd('Submitting')
+
     }
 
     reverse.onclick = (event) => {
@@ -372,7 +398,8 @@
         selectTo.options[fromIndex].selected = true
     }
 
-    function fillLibs(libs) {
+    function fillLibs(libs, currentLib) {
+        console.time('Filling libs')
         const options = Object.groupBy(libs, ({ libraryName }) => libraryName)
 
         for (const [lib, collections] of Object.entries(options)) {
@@ -393,6 +420,18 @@
         }
         selectFrom.removeChild(selectFrom.querySelector('option.stub'))
         selectTo.removeChild(selectTo.querySelector('option.stub'))
+
+        if (currentLib)
+            Array.from(selectFrom.options).find(el => el.dataset.key === currentLib).selected = true
+
+        console.timeEnd('Filling libs')
+
+    }
+
+    function finish() {
+        submit.disabled = false
+        submit.innerText = 'Swap Variables'
+        reverseSelects()
     }
 
     function showErrors(errorsObj) {
@@ -473,10 +512,10 @@
 
     Object.prototype.groupBy = (arr, callback) => {
         return arr.reduce((acc = {}, ...args) => {
-            const key = callback(...args);
+            const key = callback(...args)
             acc[key] ??= []
-            acc[key].push(args[0]);
-            return acc;
+            acc[key].push(args[0])
+            return acc
         }, {})
     }
 </script>
