@@ -134,11 +134,15 @@
         border-radius: var(--radius-m);
 
         letter-spacing: 0.02;
-        transition: background-color var(--transition-rule);
+        transition: background-color var(--transition-rule), transform var(--transition-rule);
     }
 
     button:hover {
         background: var(--figma-color-bg-hover);
+    }
+
+    button:active {
+        transform: scale(0.98);
     }
 
     button.primary {
