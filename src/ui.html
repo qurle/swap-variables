@@ -226,13 +226,17 @@
         display: flex;
         font-size: var(--font-size-s);
         padding: var(--gap-s) var(--gap-m);
-        transition: background-color var(--transition-rule);
+        transition: background-color var(--transition-rule), transform var(--transition-rule);
         cursor: pointer;
         border-radius: var(--radius-s);
     }
 
     .errors li:hover {
         background: var(--figma-color-bg-hover);
+    }
+
+    .errors li:active {
+        transform: scale(0.98);
     }
 
     .errors li p {

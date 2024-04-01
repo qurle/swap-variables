@@ -57,7 +57,9 @@ figma.ui.onmessage = async (msg) => {
       break
 
     case 'goToNode': {
-      figma.viewport.scrollAndZoomIntoView([await figma.getNodeByIdAsync(msg.message.nodeId)])
+      const node = await figma.getNodeByIdAsync(msg.message.nodeId)
+      figma.viewport.scrollAndZoomIntoView([node])
+      notify(`Going to ${node.name}`)
       break
     }
   }
