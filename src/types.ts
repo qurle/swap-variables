@@ -1,18 +1,14 @@
-export interface Libs {
-    from: {
-        lib: string,
-        collection: string,
-        key: string,
-        id?: string,
-        local?: boolean
-    },
-    to: {
-        lib: string,
-        collection: string,
-        key: string,
-        id?: string,
-        local?: boolean
-    }
+export interface Collections {
+    from: Collection,
+    to: Collection
+}
+
+export interface Collection {
+    lib: string,
+    name: string,
+    key: string,
+    id?: string,
+    local?: boolean
 }
 
 export interface Errors {

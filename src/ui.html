@@ -226,6 +226,7 @@
         display: flex;
         font-size: var(--font-size-s);
         padding: var(--gap-s) var(--gap-m);
+        gap: var(--gap-s);
         transition: background-color var(--transition-rule), transform var(--transition-rule);
         cursor: pointer;
         border-radius: var(--radius-s);
@@ -282,7 +283,7 @@
             </div>
         </div>
         <div class="buttons">
-            <button title="Reverse libraries" class="secondary reverse" type="button">
+            <button title="Reverse collections" class="secondary reverse" type="button">
                 <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path opacity="0.5" d="M16 18.5V6.5M16 6.5L20 10.625M16 6.5L12 10.625" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                     <path d="M8 6.5V18.5M8 18.5L12 14.375M8 18.5L4 14.375" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
@@ -334,14 +335,12 @@
         const message = event.data.pluginMessage.message
 
         switch (type) {
-            case 'libs':
-                fillLibs(message.libs, message.current)
+            case 'collections':
+                fillLibs(message.collections, message.current)
                 break
             case 'finish':
-                finish()
-                break
-            case 'errors':
-                showErrors(message)
+                console.log(message)
+                finish(message.errors, message.newCollection)
                 break
         }
     }
@@ -362,21 +361,22 @@
                 type: 'swap', message: {
                     from: {
                         lib: from.dataset.lib,
-                        collection: from.dataset.collection,
+                        name: from.dataset.name,
                         key: from.dataset.key,
                         id: from.dataset.id,
                         local: from.dataset.local === 'true'
                     },
-                    to: {
+                    to: to.dataset.id ? {
                         lib: to.dataset.lib,
-                        collection: to.dataset.collection,
+                        name: to.dataset.name,
                         key: to.dataset.key,
                         id: to.dataset.id,
                         local: to.dataset.local === 'true'
-                    }
+                    } : null
                 }
             }
         }, '*')
+
         console.timeEnd('Submitting')
 
     }
@@ -393,9 +393,9 @@
         selectTo.options[fromIndex].selected = true
     }
 
-    function fillLibs(libs, currentLib) {
+    function fillLibs(collections, currentCollection) {
         console.time('Filling libs')
-        const options = Object.groupBy(libs, ({ libraryName }) => libraryName)
+        const options = Object.groupBy(collections, ({ lib }) => lib)
 
         for (const [lib, collections] of Object.entries(options)) {
             const optgroup = document.createElement('optgroup')
@@ -404,7 +404,7 @@
                 const option = document.createElement('option')
                 option.textContent = `${lib.slice(0, 8)}... > ${collection.name}`
                 option.dataset.lib = lib
-                option.dataset.collection = collection.name
+                option.dataset.name = collection.name
                 option.dataset.key = collection.key
                 option.dataset.id = collection.id
                 option.dataset.local = collection.local
@@ -413,29 +413,82 @@
             selectFrom.appendChild(optgroup)
             selectTo.appendChild(optgroup.cloneNode(true))
         }
+        const optgroup = document.createElement('optgroup')
+
+        // Create new collection collection
+        const separator = document.createElement('hr')
+
+        const option = document.createElement('option')
+        option.textContent = `➕ New local collection`
+
+        selectTo.appendChild(separator)
+        selectTo.appendChild(option)
+
+        // Remove loading
         selectFrom.removeChild(selectFrom.querySelector('option.stub'))
         selectTo.removeChild(selectTo.querySelector('option.stub'))
 
-        if (currentLib)
-            Array.from(selectFrom.options).find(el => el.dataset.key === currentLib).selected = true
+        if (currentCollection)
+            selectByKey(selectFrom, currentCollection)
 
         console.timeEnd('Filling libs')
 
     }
 
-    function finish() {
+    function finish(errors, newCollection) {
+        showErrors(errors)
+        console.log('New collection:')
+        console.log(newCollection)
+        if (newCollection) {
+            addLocalCollection(newCollection)
+            selectByKey(selectTo, newCollection.key)
+        }
+
+
         submit.disabled = false
         submit.innerText = 'Swap Variables'
         reverseSelects()
+    }
+
+    function selectByKey(select, key) {
+        Array.from(select.options).find(el => el.dataset.key === key).selected = true
+    }
+
+    function addLocalCollection(newCollection) {
+        const option = document.createElement('option')
+
+        option.textContent = `${newCollection.lib.slice(0, 8)}... > ${newCollection.name}`
+        option.dataset.lib = newCollection.lib
+        option.dataset.name = newCollection.name
+        option.dataset.key = newCollection.key
+        option.dataset.id = newCollection.id
+        option.dataset.local = newCollection.local
+
+        const localOptgroupSelector = `optgroup[label="${newCollection.lib}"]`
+        let localOptgroupFrom = selectFrom.querySelector(localOptgroupSelector)
+        if (!localOptgroupFrom) {
+            const optgroup = document.createElement('optgroup')
+            optgroup.label = lib
+            localOptgroupFrom = selectFrom.appendChild(optgroup)
+        }
+        let localOptgroupTo = selectTo.querySelector(localOptgroupSelector)
+        if (!localOptgroupTo) {
+            const optgroup = document.createElement('optgroup')
+            optgroup.label = lib
+            localOptgroupTo = selectFrom.appendChild(optgroup)
+        }
+
+        localOptgroupFrom.appendChild(option)
+        localOptgroupTo.appendChild(option.cloneNode(true))
     }
 
     function showErrors(errorsObj) {
         const errorCount = Object.values(errorsObj).reduce((acc, err) => acc + err.length, 0)
         if (errorCount === 0) return
 
-        const mixedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><g opacity=".9"><path fill="currentColor" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z"/><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke"/></g></svg>`
-        const badPropSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4v5" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M8 12.33A.67.67 0 1 0 8 11a.67.67 0 0 0 0 1.33Z"/></svg>`
-        const unsupportedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M6 11.33a3.35 3.35 0 0 1 4 0" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M10 8c.37 0 .67-.45.67-1s-.3-1-.67-1c-.37 0-.67.45-.67 1s.3 1 .67 1ZM6 8c.37 0 .67-.45.67-1S6.37 6 6 6c-.37 0-.67.45-.67 1s.3 1 .67 1Z"/></svg>`
+        const mixedSVG = `<svg xmlns = "http://www.w3.org/2000/svg" width = "16" height = "16" fill = "none" viewBox = "0 0 16 16" > <g opacity=".9"><path fill="currentColor" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z" /><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke" /></g></svg>`
+        const badPropSVG = `<svg xmlns = "http://www.w3.org/2000/svg" width = "16" height = "16" fill = "none" viewBox = "0 0 16 16" ><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4v5" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M8 12.33A.67.67 0 1 0 8 11a.67.67 0 0 0 0 1.33Z"/></svg>`
+        const unsupportedSVG = `<svg xmlns = "http://www.w3.org/2000/svg" width = "16" height = "16" fill = "none" viewBox = "0 0 16 16" ><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M6 11.33a3.35 3.35 0 0 1 4 0" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M10 8c.37 0 .67-.45.67-1s-.3-1-.67-1c-.37 0-.67.45-.67 1s.3 1 .67 1ZM6 8c.37 0 .67-.45.67-1S6.37 6 6 6c-.37 0-.67.45-.67 1s.3 1 .67 1Z"/></svg>`
 
         heading.textContent = errorCount + ' error' + (errorCount === 1 ? '' : 's')
         errorsEl.style.display = 'flex'
@@ -468,11 +521,11 @@
                             icon.innerHTML = mixedSVG
                             break
                         case 'bad-prop':
-                            errorText = `Can't replace ${error.property} of ${error.nodeName}`
+                            errorText = `Can't check ${error.property} of ${error.nodeName}`
                             icon.innerHTML = badPropSVG
                             break
                         case 'unsupported':
-                            errorText = `Can't replace ${error.property} of ${error.type.toLowerCase()} ${error.nodeName}`
+                            errorText = `Can't check ${error.property} of ${error.type.toLowerCase()} ${error.nodeName}`
                             icon.innerHTML = unsupportedSVG
                             break
                     }

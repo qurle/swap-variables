@@ -1,21 +1,21 @@
-const LOGS = false
-const TIMERS = false
+const LOGS = true
+const TIMERS = true
 
-import { Libs, Errors } from './types'
+import { Collection, Collections, Errors } from './types'
 import { figmaRGBToHex } from './utils'
+import { cloneVariables } from './clone'
 
 // Constants
 const actionMsgs = ["Swapped", "Affected", "Made it with", "Fixed", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const uiSize = { width: 300, height: 300 }
 let times = new Map()
-let addTimes = new Map()
 
 // Variables
 let notification: NotificationHandler
 let working: boolean
 let count: number
-let libraries
+let collections
 let errors: Errors = {
   noMatch: [],
   mixed: [],
@@ -23,6 +23,10 @@ let errors: Errors = {
   unsupported: []
 }
 let gotErrors = false
+
+// Shorthands
+const v = figma.variables
+const tl = figma.teamLibrary
 
 // Cancel on page change
 figma.on("currentpagechange", cancel)
@@ -47,14 +51,25 @@ figma.ui.onmessage = async (msg) => {
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
-      await swap(msg.message, nodes)
+      const collections: Collections = msg.message
+      c(`Collections to swap ↴`)
+      c(collections)
+      const newCollection = collections.to === null
+
+      if (newCollection) {
+        collections.to = await cloneVariables(collections.from)
+        c(`Cloned variables`)
+      }
+
+      await swap(collections, nodes)
       nodes.forEach(node => {
         node.setRelaunchData({ relaunch: '' })
-        node.setPluginData('currentLibKey', msg.message.to.key)
+        node.setPluginData('currentCollectionKey', msg.message.to.key)
       })
 
-      finish()
+      finish(newCollection ? collections.to : null)
       break
+
 
     case 'goToNode': {
       const node = await figma.getNodeByIdAsync(msg.message.nodeId)
@@ -70,59 +85,64 @@ figma.ui.postMessage("started")
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
-  libraries = await getLibraries()
+  collections = await getCollections()
 
-  time('Getting current lib')
+  time('Getting current collection')
   const selection = figma.currentPage.selection
   const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
-  let currentLibKey = nodes[0].getPluginData('currentLibKey')
-  currentLibKey = nodes.every((el) => el.getPluginData('currentLibKey') === currentLibKey) ? currentLibKey : null
-  timeEnd('Getting current lib')
+  let currentCollectionKey = nodes[0].getPluginData('currentCollectionKey')
+  currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
+  timeEnd('Getting current collection')
 
-  figma.ui.postMessage({ type: 'libs', message: { libs: libraries, current: currentLibKey } })
+  figma.ui.postMessage({ type: 'collections', message: { collections: collections, current: currentCollectionKey } })
 }
 
-async function getLibraries() {
-  time('Getting internal libs')
-  const localCollections = (await figma.variables.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, libraryName: 'Local Collections', name: el.name, id: el.id, local: true }))
-  timeEnd('Getting internal libs')
+async function getCollections() {
+  time('Getting internal collections')
+  const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, lib: 'Local Collections', name: el.name, id: el.id, local: true }))
+  timeEnd('Getting internal collections')
 
-  time('Getting external libs')
-  const allExternalCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync()
+  time('Getting external collections')
+  const allExternalCollections = await tl.getAvailableLibraryVariableCollectionsAsync()
 
   // Non empty collections
   const externalCollections = []
-  for (const library of allExternalCollections) {
-    const variables = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(library.key)
+  for (const collection of allExternalCollections) {
+    const variables = await tl.getVariablesInLibraryCollectionAsync(collection.key)
     if (variables.length > 0) {
-      externalCollections.push(library)
-      library['id'] = (await figma.variables.importVariableByKeyAsync(variables[0].key)).variableCollectionId
-      library['local'] = false
+      externalCollections.push(collection)
+      // Finding ID by importing variable from collection
+      collection['id'] = (await v.importVariableByKeyAsync(variables[0].key)).variableCollectionId
+      collection['local'] = false
+      // Renaming libraryName -> lib (as in local)
+      delete Object.assign(collection, { ['lib']: collection['libraryName'] })['libraryName']
+      c(collection)
     }
   }
-  timeEnd('Getting external libs')
+  timeEnd('Getting external collections')
 
   const collections = [...externalCollections, ...localCollections]
   c(collections)
   return collections
 }
 
+
+
 let swappingSimpleTime = 0
-async function swap(libs: Libs, nodes) {
-  c(`Libs to swap ↴`)
-  c(libs)
+async function swap(collections: Collections, nodes) {
+
   for (const node of nodes) {
     c(`swapping ${node.name}`)
-    for (const [property, value] of Object.entries(node.boundVariables)) {
+    for (const [property, value] of Object.entries(node.boundVariables || {})) {
       // Complex immutable properties
       if (Array.isArray(value)) {
-        await swapComplex(node, property, libs)
+        await swapComplex(node, property, collections)
       }
       // Simple properties
       else {
         time('Swapping simple')
         c(`swapping ${property}`)
-        const newVariable = await getNewVariable(value as Variable, libs, node)
+        const newVariable = await getNewVariable(value as Variable, collections, node)
         if (newVariable) {
           if (node.type === 'TEXT' && newVariable.resolvedType === 'FLOAT') {
             error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
@@ -136,7 +156,7 @@ async function swap(libs: Libs, nodes) {
 
     // Recursion
     if (node.children && node.children.length > 0) {
-      await swap(libs, node.children)
+      await swap(collections, node.children)
     }
   }
 }
@@ -144,7 +164,8 @@ async function swap(libs: Libs, nodes) {
 let swappingComplexTime = 0
 let boundingComplexTime = 0
 let layers = 0
-async function swapComplex(node, property: string, libs: Libs) {
+
+async function swapComplex(node, property: string, collections: Collections) {
   time('Swapping complex')
   let setBoundVarible
   c('swapping complex ' + property)
@@ -154,7 +175,7 @@ async function swapComplex(node, property: string, libs: Libs) {
         error('mixed', { nodeName: node.name, nodeId: node.id })
         return
       }
-      setBoundVarible = figma.variables.setBoundVariableForPaint
+      setBoundVarible = v.setBoundVariableForPaint
       break
     case 'strokes':
       if (node.type === 'SECTION') {
@@ -164,13 +185,13 @@ async function swapComplex(node, property: string, libs: Libs) {
         return
       }
       else
-        setBoundVarible = figma.variables.setBoundVariableForPaint
+        setBoundVarible = v.setBoundVariableForPaint
       break
     case 'layoutGrids':
-      setBoundVarible = figma.variables.setBoundVariableForLayoutGrid
+      setBoundVarible = v.setBoundVariableForLayoutGrid
       break
     case 'effects':
-      setBoundVarible = figma.variables.setBoundVariableForEffect
+      setBoundVarible = v.setBoundVariableForEffect
       break
     case 'textRangeFills':
     case 'textRangeStrokes':
@@ -185,12 +206,14 @@ async function swapComplex(node, property: string, libs: Libs) {
   node[property] = await Promise.all(
     node[property].map(async (layer) => {
       layers++
-      c(`Found ${Object.entries(layer.boundVariables).length} variables`)
-      if (Object.entries(layer.boundVariables).length === 0)
+      c(`Current layer ↴`)
+      c(layer)
+      if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
         return layer
 
+      c(`Found ${Object.entries(layer.boundVariables).length} variables`)
       for (const [field, variable] of Object.entries(layer.boundVariables)) {
-        const newVariable = await getNewVariable(variable, libs, node)
+        const newVariable = await getNewVariable(variable, collections, node)
         if (newVariable) {
           c('found new variable')
           time('Bounding complex')
@@ -205,16 +228,19 @@ async function swapComplex(node, property: string, libs: Libs) {
 
 }
 
-async function getNewVariable(variable, libs: Libs, node) {
-  const variableObject = await figma.variables.getVariableByIdAsync(variable.id)
+async function getNewVariable(variable, collections: Collections, node) {
+  const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Swapping ↴`)
   c(variableObject)
-  if (variableObject.variableCollectionId !== libs.from.id)
+  if (variableObject.variableCollectionId !== collections.from.id) {
+    c(`Varaible not exists in source collection`)
     return
+  }
 
+  c(`Varaible exists in source collection`)
   let newVariable
   try {
-    newVariable = await findVariable(libs.to, variableObject)
+    newVariable = await findVariable(collections.to, variableObject)
     count++
   }
   catch {
@@ -229,14 +255,14 @@ async function getNewVariable(variable, libs: Libs, node) {
 }
 
 let findingTime = 0
-async function findVariable(lib, variable) {
+async function findVariable(collection, variable) {
   time('Finding')
   const name = variable.name
-  c(`Is local: ${lib.local}`)
+  c(`Is local: ${collection.local}`)
 
-  const newVariable = lib.local === true ?
-    (await figma.variables.getLocalVariablesAsync()).find(el => el.variableCollectionId === lib.id && el.name === variable.name) :
-    await figma.variables.importVariableByKeyAsync((await figma.teamLibrary.getVariablesInLibraryCollectionAsync(lib.key)).find(el => el.name === name).key)
+  const newVariable = collection.local === true ?
+    (await v.getLocalVariablesAsync()).find(el => el.variableCollectionId === collection.id && el.name === variable.name) :
+    await v.importVariableByKeyAsync((await tl.getVariablesInLibraryCollectionAsync(collection.key)).find(el => el.name === name).key)
   c(`Found new ${newVariable.name} with id ${newVariable.id}`)
   findingTime += timeEnd('Finding', false)
   return newVariable
@@ -272,14 +298,13 @@ function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
 }
 
 // Ending the work
-function finish() {
+function finish(newCollection = null) {
   showTimers()
-  figma.ui.postMessage({ type: 'finish' })
-  figma.ui.postMessage({ type: 'errors', message: errors })
+  figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
   if (errorCount > 0)
-    figma.ui.resize(uiSize.width + 16, uiSize.height + 60)
+    figma.ui.resize(uiSize.width, uiSize.height + 60)
   else
     figma.ui.resize(uiSize.width, uiSize.height)
 
@@ -312,13 +337,13 @@ function cancel() {
 }
 
 function showTimers() {
-  console.log(`⏱️ Swapping simple: ${swappingSimpleTime}`)
-  console.log(`⏱️ Bounding complex: ${boundingComplexTime}`)
-  console.log(`Time per layer: ${Math.round(boundingComplexTime / layers)}`)
-  console.log(`⏱️ Swapping complex: ${swappingComplexTime}`)
-  console.log(`Time per layer: ${Math.round(swappingComplexTime / layers)}`)
-  console.log(`⏱️ Finding: ${findingTime}`)
-  console.log(`Time per variable: ${Math.round(findingTime / count)}`)
+  c(`⏱️ Swapping simple: ${swappingSimpleTime}`)
+  c(`⏱️ Bounding complex: ${boundingComplexTime}`)
+  c(`Time per layer: ${Math.round(boundingComplexTime / layers)}`)
+  c(`⏱️ Swapping complex: ${swappingComplexTime}`)
+  c(`Time per layer: ${Math.round(swappingComplexTime / layers)}`)
+  c(`⏱️ Finding: ${findingTime}`)
+  c(`Time per variable: ${Math.round(findingTime / count)}`)
   swappingSimpleTime = 0
   swappingComplexTime = 0
   boundingComplexTime = 0
