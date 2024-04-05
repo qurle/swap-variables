@@ -339,7 +339,6 @@
                 fillLibs(message.collections, message.current)
                 break
             case 'finish':
-                console.log(message)
                 finish(message.errors, message.newCollection)
                 break
         }
@@ -438,8 +437,6 @@
 
     function finish(errors, newCollection) {
         showErrors(errors)
-        console.log('New collection:')
-        console.log(newCollection)
         if (newCollection) {
             addLocalCollection(newCollection)
             selectByKey(selectTo, newCollection.key)
