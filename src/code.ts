@@ -1,5 +1,5 @@
-const LOGS = true
-const TIMERS = true
+const LOGS = false
+const TIMERS = false
 
 import { Collection, Collections, Errors } from './types'
 import { figmaRGBToHex } from './utils'
