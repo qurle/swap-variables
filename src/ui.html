@@ -428,8 +428,9 @@
         selectFrom.removeChild(selectFrom.querySelector('option.stub'))
         selectTo.removeChild(selectTo.querySelector('option.stub'))
 
-        if (currentCollection)
+        if (currentCollection) {
             selectByKey(selectFrom, currentCollection)
+        }
 
         console.timeEnd('Filling libs')
 
@@ -443,7 +444,6 @@
             addLocalCollection(newCollection)
             selectByKey(selectTo, newCollection.key)
         }
-
 
         submit.disabled = false
         submit.innerText = 'Swap Variables'
@@ -468,14 +468,15 @@
         let localOptgroupFrom = selectFrom.querySelector(localOptgroupSelector)
         if (!localOptgroupFrom) {
             const optgroup = document.createElement('optgroup')
-            optgroup.label = lib
+            optgroup.label = newCollection.lib
             localOptgroupFrom = selectFrom.appendChild(optgroup)
         }
         let localOptgroupTo = selectTo.querySelector(localOptgroupSelector)
         if (!localOptgroupTo) {
+            const divider = selectTo.querySelector('hr')
             const optgroup = document.createElement('optgroup')
-            optgroup.label = lib
-            localOptgroupTo = selectFrom.appendChild(optgroup)
+            optgroup.label = newCollection.lib
+            localOptgroupTo = selectTo.insertBefore(optgroup, divider)
         }
 
         localOptgroupFrom.appendChild(option)
