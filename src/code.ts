@@ -74,6 +74,7 @@ figma.ui.onmessage = async (msg) => {
     case 'goToNode': {
       const node = await figma.getNodeByIdAsync(msg.message.nodeId)
       figma.viewport.scrollAndZoomIntoView([node])
+      figma.currentPage.selection = [node as SceneNode]
       notify(`Going to ${node.name}`)
       break
     }
@@ -134,6 +135,11 @@ async function swap(collections: Collections, nodes) {
   for (const node of nodes) {
     c(`swapping ${node.name}`)
     for (const [property, value] of Object.entries(node.boundVariables || {})) {
+
+      // Only property that has object as value
+      if (property === 'componentProperties') {
+        error('unsupported', { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
+      }
       // Complex immutable properties
       if (Array.isArray(value)) {
         await swapComplex(node, property, collections)
@@ -197,6 +203,15 @@ async function swapComplex(node, property: string, collections: Collections) {
     case 'textRangeStrokes':
       c(`skipping ${property}`)
       // error('mixed', { nodeName: node.name, nodeId: node.id })
+      return
+    case 'fontFamily':
+    case 'letterSpacing':
+    case 'fontSize':
+    case 'paragraphSpacing':
+    case 'paragraphIndent':
+    case 'fontWeight':
+    case 'lineHeight':
+      error('unsupported', { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
       return
     default:
       error('badProp', { property: property, nodeName: node.name, nodeId: node.id })
@@ -292,9 +307,15 @@ function error(type: 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
         return
       break
   }
-
   errors[type].push(options)
+}
 
+async function replaceComponentProperties(node, collections: Collections) {
+  for (const componentProperty of node.componentProperties) {
+    if (componentProperty.hasOwnProperty('boundVariables')) {
+      // Waiting for Figma Plugin API to have setBoundVariableForProperty
+    }
+  }
 }
 
 // Ending the work
