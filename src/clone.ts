@@ -1,4 +1,5 @@
 import { Collection, Collections } from './types'
+import { c } from './code'
 
 // Shorthands
 const v = figma.variables
@@ -12,6 +13,11 @@ export async function cloneVariables(from): Promise<Collection> {
 
     fromCollection = await v.getVariableCollectionByIdAsync(from.id)
     fromVariables = await Promise.all(fromCollection.variableIds.map(async (vid) => await v.getVariableByIdAsync(vid)))
+
+    c('Cloning variables:')
+    c(fromVariables.map(v => v.name))
+    c('Fron collection')
+    c(fromCollection)
 
     let toVariables: Variable[] = []
     let toCollection: VariableCollection = await createCollection(from)

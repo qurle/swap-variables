@@ -372,7 +372,7 @@ function showTimers() {
   layers = 0
 }
 
-function c(str: any = 'here', type?) {
+export function c(str: any = 'here', type?) {
   if (!LOGS)
     return
   switch (type) {
