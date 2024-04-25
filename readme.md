@@ -41,7 +41,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   [x] Clickable error allows to zoom in problematic layers.
 -   [x] Collections with 0 variables are hidden.
 -   [x] Ability to create new local collection.
--   [ ] Typographic variables
+-   [ ] Typographic variables.
 -   [ ] Display number of variables in collection.
 -   [ ] Selecting the option that's in second select makes them swap.
 
