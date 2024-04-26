@@ -167,6 +167,20 @@ async function swap(collections: Collections, nodes) {
   }
 }
 
+async function swapSimple(node, value, property, collections) {
+  time('Swapping simple')
+  c(`swapping ${property}`)
+  const newVariable = await getNewVariable(value as Variable, collections, node)
+  if (newVariable) {
+    if (node.type === 'TEXT' && newVariable.resolvedType === 'FLOAT') {
+      error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
+      throw 'unsupported'
+    }
+    node.setBoundVariable(property, newVariable)
+  }
+  swappingSimpleTime = timeEnd('Swapping simple', false)
+}
+
 let swappingComplexTime = 0
 let boundingComplexTime = 0
 let layers = 0
