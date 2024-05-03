@@ -9,9 +9,10 @@ import { cloneVariables } from './clone'
 const actionMsgs = ["Swapped", "Affected", "Made it with", "Fixed", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
-const boundVariablesToPropertiesMap = {
-  'fontFamily': 'fontName'
-}
+const affectingInitFont = ['characters', 'fontSize', 'fontName', 'textStyleId', 'textCase', 'textDecoration', 'letterSpacing', 'leadingTrim', 'lineHeight']
+const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'strokeAlign', 'strokeStyleId']
+const nonMixedProperties = ['paragraphSpacing', 'paragraphIndent']
+
 const uiSize = { width: 300, height: 300 }
 const OK = -1
 
@@ -140,29 +141,25 @@ let swappingSimpleTime = 0
 async function swap(collections: Collections, nodes) {
 
   for (const node of nodes) {
-    c(`swapping ${node.name}`)
-    for (let [property, value] of Object.entries(node.boundVariables || {})) {
+    c(`Swapping ${node.name}`)
 
-      // Sometimes names of props in bound variables and in node differs
-      // property = boundVariablesToPropertiesMap[property] || property
+    // Special text handling
+    if (node.type === 'TEXT') {
+      await swapTextNode(node, collections)
+    }
+
+    for (let [property, value] of Object.entries(node.boundVariables || {})) {
 
       if (property === 'componentProperties') {
         error('unsupported', { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
       }
 
-      // Ranged properties of text
-      if (node[property].toString() === `Symbol(figma.mixed)`) {
-        c(`Swapping ranged property`)
-        await swapRangedProperty(node, property, collections)
-        return
-      }
-
       // Complex immutable properties
       if (Array.isArray(value) && !typographyProperties.includes(property)) {
-        await swapComplex(node, property, collections)
+        await swapComplexProperty(node, property, collections)
       }
       else {
-        await swapSimple(node, value, property, collections)
+        await swapSimpleProperty(node, value, property, collections)
       }
 
       // Recursion
@@ -173,14 +170,48 @@ async function swap(collections: Collections, nodes) {
   }
 }
 
-async function swapSimple(node, value, property, collections) {
+async function swapTextNode(node: TextNode, collections) {
+  c(`Working with text`)
+  if (!Object.keys(node.boundVariables))
+    return null
+
+  // Checking if we need to load font
+  if (Object.keys(node.boundVariables).find(el => affectingInitFont.includes(el))) {
+    c(`Loading fonts ↴`)
+    c(node.getRangeAllFontNames(0, node.characters.length))
+    if (node.hasMissingFont) {
+      error('badProp', { property: 'fontName', nodeName: node.name, nodeId: node.id })
+      return
+    }
+    node.getRangeAllFontNames(0, node.characters.length).map(figma.loadFontAsync)
+  }
+
+  // Props that can't be mixed
+  for (const property of Object.keys(node.boundVariables).filter(el => nonMixedProperties.includes(el))) {
+    await swapSimpleProperty(node, node.boundVariables[property][0], property, collections)
+  }
+
+  // Props that can be mixed
+  for (const segment of node.getStyledTextSegments(['boundVariables'])) {
+    for (const [property, value] of Object.entries(segment.boundVariables)) {
+      await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
+    }
+  }
+}
+
+async function swapSimpleProperty(node, value, property, collections, range = []) {
   time('Swapping simple')
   c(`Swapping simple property: ${property}`)
   const newVariable = await getNewVariable(value as Variable, collections, node)
   if (newVariable) {
-    if (node.type === 'TEXT' && newVariable.resolvedType === 'FLOAT') {
+    if (property === 'characters' && newVariable.resolvedType === 'FLOAT') {
       error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
       return 'unsupported'
+    }
+    // Text
+    if (range.length > 0) {
+      c(`Setting ranged variable from ${node.characters[range[0]]}:${range[0]} to ${node.characters[range[1]]}:${range[1]}`)
+      node.setRangeBoundVariable(range[0], range[1], property, newVariable)
     }
     node.setBoundVariable(property, newVariable)
   }
@@ -192,7 +223,7 @@ let swappingComplexTime = 0
 let boundingComplexTime = 0
 let layers = 0
 
-async function swapComplex(node, property: string, collections: Collections) {
+async function swapComplexProperty(node, property: string, collections: Collections) {
   time('Swapping complex')
   let setBoundVarible
   c(`Swapping complex property: ${property}`)
@@ -251,16 +282,12 @@ async function swapComplex(node, property: string, collections: Collections) {
 
 }
 
-async function swapRangedProperty(node: TextNode, property, collections) {
-  error('mixed', { property: property, nodeName: node.name, nodeId: node.id })
-}
-
 async function getNewVariable(variable, collections: Collections, node) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
-  c(`Swapping ↴`)
+  c(`Source variable ↴`)
   c(variableObject)
   if (variableObject.variableCollectionId !== collections.from.id) {
-    c(`Varaible not exists in source collection`)
+    c(`Variable does not exist in source collection`)
     return
   }
 
