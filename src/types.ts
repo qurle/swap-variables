@@ -11,27 +11,33 @@ export interface Collection {
     local?: boolean
 }
 
+// Actual structure
 export interface Errors {
+    limitation: {
+        maxModes: number
+        currentModes: number
+    }[],
     noMatch: {
-        name: string,
-        value: string,
-        type: string,
-        nodeId: string
+        name?: string,
+        value?: string | VariableValue,
+        type?: string,
+        nodeName?: string,
+        nodeId?: string
     }[]
     mixed: {
+        property?: string,
         nodeName: string,
         nodeId: string
     }[],
     badProp: {
-        property: string,
+        property?: string,
         nodeName: string,
         nodeId: string
     }[],
     unsupported: {
-        property: string,
+        property?: string,
+        type?: string,
         nodeName: string,
-        type: string,
         nodeId: string
-
     }[]
 }
