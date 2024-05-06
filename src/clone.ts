@@ -1,5 +1,5 @@
 import { Collection, Collections } from './types'
-import { c } from './code'
+import { c, error } from './code'
 
 // Shorthands
 const v = figma.variables
@@ -12,11 +12,14 @@ export async function cloneVariables(from): Promise<Collection> {
     let fromCollection: VariableCollection
 
     fromCollection = await v.getVariableCollectionByIdAsync(from.id)
-    fromVariables = await Promise.all(fromCollection.variableIds.map(async (vid) => await v.getVariableByIdAsync(vid)))
+
+    fromVariables = from.local ?
+        await Promise.all(fromCollection.variableIds.map(async (vid) => await v.getVariableByIdAsync(vid))) :
+        await Promise.all((await tl.getVariablesInLibraryCollectionAsync(fromCollection.key)).map(async variable => v.importVariableByKeyAsync(variable.key)))
 
     c('Cloning variables:')
     c(fromVariables.map(v => v.name))
-    c('Fron collection')
+    c('From collection')
     c(fromCollection)
 
     let toVariables: Variable[] = []
@@ -54,15 +57,37 @@ async function sameNameExist(name: string) {
     return (await v.getLocalVariableCollectionsAsync()).find(col => col.name === name)
 }
 
-function createModeMap(fromCollection, toCollection) {
+function createModeMap(fromCollection: VariableCollection, toCollection: VariableCollection) {
     let modeMap = {}
+    c(`Cloning ${fromCollection.modes.length} modes:`)
+    c(fromCollection.modes)
     for (const fromMode of fromCollection.modes) {
+        // Renaming default modes if no variables is present
+        if (toCollection.variableIds.length === 0)
+            toCollection.modes.forEach((mode, i) => toCollection.renameMode(mode.modeId, fromCollection.modes[i].name))
+
+        // Checking if we have modes with same names
         const toMode = toCollection.modes.find(el => el.name === fromMode.name)
         if (toMode)
             modeMap[fromMode.modeId] = toMode.modeId
-        else
-            modeMap[fromMode.modeId] = toCollection.addMode(fromMode.name)
+        else {
+            try {
+                modeMap[fromMode.modeId] = toCollection.addMode(fromMode.name)
+            }
+            catch (e) {
+                const maxModes = e.message.match(/in addMode: Limited to ([0-9]+) modes only/)[1]
+                if (maxModes)
+                    error('limitation', {
+                        currentModes: toCollection.modes.filter(el => el.name !== fromMode.name).length + fromCollection.modes.length,
+                        maxModes: maxModes
+                    })
+                else
+                    throw e
+            }
+        }
     }
+    c(`Created modeMap:`)
+    c(modeMap)
     return modeMap
 }
 
@@ -81,7 +106,10 @@ function mergeWithCollection(fromVariables, toVariables, toCollection, modeMap) 
         }
 
         Object.entries(fromVariable.valuesByMode).forEach(
-            ([k, v]) => toVariable.setValueForMode(modeMap[k], (v as VariableValue))
+            ([k, v]) => {
+                if (modeMap[k])
+                    toVariable.setValueForMode(modeMap[k], (v as VariableValue))
+            }
         )
     }
 }
