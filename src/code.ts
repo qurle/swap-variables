@@ -1,5 +1,5 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = true
+const LOGS = false
 const TIMERS = false
 
 import { Collection, Collections, Errors } from './types'
