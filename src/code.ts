@@ -1,3 +1,4 @@
+// Disclamer: I am not a programmer. Read at yor risk
 const LOGS = true
 const TIMERS = false
 
@@ -14,8 +15,8 @@ const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'l
 const affectingInitFont = ['characters', 'fontSize', 'fontName', 'textStyleId', 'textCase', 'textDecoration', 'letterSpacing', 'leadingTrim', 'lineHeight']
 const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'strokeAlign', 'strokeStyleId']
 
-const rCollectionId = /(VariableCollectionId:.*)\/[0-9]*:[0-9]*/
-const rVariableId = /(VariableId:.*)\/[0-9]*:[0-9]*/
+const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
+const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
 const uiSize = { width: 300, height: 300 }
 // Idk why I made this
@@ -164,11 +165,11 @@ async function swap(collections: Collections, nodes) {
         else {
           await swapSimpleProperty(node, value, property, collections)
         }
+      }
 
-        // Recursion
-        if (node.children && node.children.length > 0) {
-          await swap(collections, node.children)
-        }
+      // Recursion
+      if (node.children && node.children.length > 0) {
+        await swap(collections, node.children)
       }
     }
   }
@@ -176,9 +177,10 @@ async function swap(collections: Collections, nodes) {
 
 async function swapTextNode(node: TextNode, collections) {
   c(`Working with text`)
-  if (!Object.keys(node.boundVariables))
+  if (!Object.keys(node.boundVariables)) {
+    c(`No variables`)
     return 'no variables'
-
+  }
   // Checking if we need to load font
   if (Object.keys(node.boundVariables).find(el => affectingInitFont.includes(el))) {
     c(`Loading fonts ↴`)
@@ -192,8 +194,9 @@ async function swapTextNode(node: TextNode, collections) {
 
   // Props that can't be mixed are stored in nonMixedProperties array
   for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
+    if (property === 'textRangeFills' || property === 'textRangeStrokes') continue
     c(`Swapping ${property} of ${node.name}`)
-    if (property === 'textRangeFills' || property === 'textRangeStrokes' || node[property].toString() === `Symbol(figma.mixed)`) {
+    if (node[property].toString() === `Symbol(figma.mixed)`) {
       error('mixed', { nodeName: node.name, nodeId: node.id })
       continue
     }
@@ -294,7 +297,7 @@ async function getNewVariable(variable, collections: Collections, node) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
   c(variableObject)
-  if (!collections.from.id.includes(variableObject.variableCollectionId.match(rCollectionId)[1])) {
+  if (!collections.from.id.includes(variableObject.variableCollectionId.match(rCollectionId)?.[1])) {
     c(`Variable doesn't belong to source collection`)
     return
   }
