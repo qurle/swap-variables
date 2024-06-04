@@ -39,6 +39,11 @@
         color: var(--figma-color-text);
     }
 
+    *:focus-visible {
+        outline: 1px solid var(--figma-color-border-selected);
+        outline-offset: 2px;
+    }
+
 
     .border-extender {
         position: relative;
@@ -71,7 +76,7 @@
         gap: var(--gap-l);
     }
 
-    label {
+    .select label {
         display: block;
         padding: 0 var(--gap-s);
         margin-bottom: var(--gap-s);
@@ -109,12 +114,101 @@
         width: 100%;
         padding: 0.75rem 2rem 0.75rem 1rem;
         border: none;
+        border-radius: var(--radius-m);
         background: none;
     }
 
     select:focus {
         outline: none;
         background-color: var(--figma-color-bg-hover);
+    }
+
+    .segmented {
+        appearance: none;
+        border: none;
+
+        display: flex;
+        padding: 3px;
+
+        border-radius: var(--radius-m);
+        background-color: var(--figma-color-bg-secondary);
+        border: 1px solid var(--figma-color-border);
+    }
+
+    .segmented input {
+        appearance: none;
+        position: absolute;
+
+        height: 100%;
+        width: 100%;
+
+        border-radius: calc(var(--radius-m) - 3px);
+        background-color: transparent;
+        box-shadow: none;
+        transition: background-color var(--transition-rule), transform var(--transition-rule), box-shadow var(--transition-rule);
+
+        pointer-events: all;
+        cursor: pointer;
+    }
+
+    .segmented label {
+        appearance: none;
+
+        position: relative;
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+        flex-grow: 1;
+
+        gap: var(--gap-xs);
+        padding: var(--gap-s);
+
+        pointer-events: none;
+    }
+
+    .segmented input~span {
+        z-index: 1;
+        opacity: 0.6;
+        transition: opacity var(--transition-rule);
+    }
+
+    .segmented input:checked {
+        background-color: var(--figma-color-bg);
+        box-shadow: 0 2px 8px -4px #00000040;
+    }
+
+    .segmented input:checked~span {
+        opacity: 1;
+    }
+
+
+    .segmented input:active {
+        transform: scale(.95);
+    }
+
+    .segmented .tooltip {
+        position: absolute;
+        top: calc(-1 * var(--gap-s));
+        right: 0;
+        width: 8rem;
+
+        opacity: 0;
+
+        border-radius: var(--radius-s);
+        padding: var(--gap-s);
+
+        background-color: var(--figma-color-bg-inverse);
+        color: var(--figma-color-text-oninverse);
+
+        transform: translateY(-90%);
+        transition: transform var(--transition-rule), opacity var(--transition-rule);
+    }
+
+    .segmented input:hover~.tooltip,
+    .segmented input:focus-visible~.tooltip {
+        opacity: 1;
+        transform: translateY(-100%);
     }
 
     .buttons {
@@ -162,7 +256,6 @@
         }
     }
 
-
     button.primary:hover {
         transition: opacity var(--transition-rule), box-shadow var(--transition-rule);
         opacity: 0.95;
@@ -184,6 +277,7 @@
         text-decoration-color: transparent;
         text-underline-offset: 4px;
 
+        border-radius: var(--radius-s);
         transition: text-decoration-color var(--transition-rule);
     }
 
@@ -266,7 +360,7 @@
 </div>
 <div class="container">
     <form>
-        <div>
+        <div class="select">
             <label for="from">Source</label>
             <div class="select-wrapper">
                 <select id="from" name="from">
@@ -274,7 +368,7 @@
                 </select>
             </div>
         </div>
-        <div>
+        <div class="select">
             <label for="to">Swap to</label>
             <div class="select-wrapper">
                 <select id="to" name="to">
@@ -282,6 +376,21 @@
                 </select>
             </div>
         </div>
+        <fieldset class="segmented scope">
+            <label>
+                <input type="radio" name="scope" value="selection" checked />
+                <span>Selection</span></label>
+            <label>
+                <input type="radio" name="scope" value="page" />
+                <span>This page</label>
+            <label>
+                <input type="radio" name="scope" value="all" />
+                <span>All pages</span>
+                <div class="tooltip">
+                    Careful. It might take a lot of time
+                </div>
+            </label>
+        </fieldset>
         <div class="buttons">
             <button title="Reverse collections" class="secondary reverse" type="button">
                 <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -317,6 +426,7 @@
     const form = document.querySelector('form')
     const selectFrom = form.querySelector('select[name=from]')
     const selectTo = form.querySelector('select[name=to]')
+    const scopeSelect = form.querySelector('.scope')
     const reverse = form.querySelector('button.reverse')
     const errorsEl = document.querySelector('.errors')
     const heading = errorsEl.querySelector('h2')
@@ -341,12 +451,16 @@
         console.log(message)
 
         switch (type) {
+            case 'scope':
+                defineScope(message.scope)
+                break
             case 'collections':
                 fillLibs(message.collections, message.current)
                 break
             case 'finish':
                 finish(message.errors, message.newCollection)
                 break
+
         }
     }
 
@@ -361,25 +475,32 @@
         const from = selectFrom.selectedOptions[0]
         const to = selectTo.selectedOptions[0]
 
+        const scope = scopeSelect.querySelector('input:checked').value
+        console.log('Checked scope ↴')
+        console.log(scopeSelect.querySelector('input:checked'))
+
         parent.postMessage({
             pluginMessage: {
                 type: 'swap', message: {
-                    from: {
-                        lib: from.dataset.lib,
-                        name: from.dataset.name,
-                        key: from.dataset.key,
-                        id: from.dataset.id,
-                        local: from.dataset.local === 'true',
-                        modes: JSON.parse(from.dataset.modes)
+                    collections: {
+                        from: {
+                            lib: from.dataset.lib,
+                            name: from.dataset.name,
+                            key: from.dataset.key,
+                            id: from.dataset.id,
+                            local: from.dataset.local === 'true',
+                            modes: JSON.parse(from.dataset.modes)
+                        },
+                        to: to.dataset.id ? {
+                            lib: to.dataset.lib,
+                            name: to.dataset.name,
+                            key: to.dataset.key,
+                            id: to.dataset.id,
+                            local: to.dataset.local === 'true',
+                            modes: JSON.parse(to.dataset.modes)
+                        } : null
                     },
-                    to: to.dataset.id ? {
-                        lib: to.dataset.lib,
-                        name: to.dataset.name,
-                        key: to.dataset.key,
-                        id: to.dataset.id,
-                        local: to.dataset.local === 'true',
-                        modes: JSON.parse(to.dataset.modes)
-                    } : null
+                    scope: scope
                 }
             }
         }, '*')
@@ -444,6 +565,12 @@
 
     }
 
+    function defineScope(scope) {
+        console.log(`Defining scope: ${scope}`)
+        if (['selection', 'page', 'all'].includes(scope))
+            scopeSelect.querySelector(`input[value=${scope}]`).checked = true
+    }
+
     function finish(errors, newCollection) {
         showErrors(errors)
         if (newCollection) {
@@ -504,6 +631,17 @@
         for (const [key, errors] of Object.entries(errorsObj)) {
             if (errors.length > 0) {
                 errors.map(error => {
+
+                    const selectNode = (event) => {
+                        parent.postMessage({
+                            pluginMessage: {
+                                type: 'goToNode', message: {
+                                    nodeId: error.nodeId
+                                }
+                            }
+                        }, '*')
+                    }
+
                     let errorText
                     let icon = document.createElement('div')
                     switch (key) {
@@ -544,15 +682,15 @@
                     const text = document.createElement('p')
                     text.textContent = errorText
                     const listItem = document.createElement('li')
-                    listItem.onclick = (event) => {
-                        parent.postMessage({
-                            pluginMessage: {
-                                type: 'goToNode', message: {
-                                    nodeId: error.nodeId
-                                }
-                            }
-                        }, '*')
-                    }
+                    listItem.tabIndex = '0'
+                    listItem.addEventListener('click', selectNode)
+                    listItem.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === 'Space') {
+                            console.log(`Selected ${error.nodeId}`)
+                            selectNode()
+                        }
+                    })
+
                     listItem.appendChild(text)
                     listItem.appendChild(icon)
                     lists[key].appendChild(listItem)

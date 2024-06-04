@@ -1,3 +1,5 @@
+export type Scope = 'selection' | 'page' | 'all'
+
 export interface Collections {
     from: Collection,
     to: Collection

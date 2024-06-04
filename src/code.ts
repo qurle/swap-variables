@@ -1,8 +1,8 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = false
+const LOGS = true
 const TIMERS = false
 
-import { Collection, Collections, Errors } from './types'
+import { Scope, Collection, Collections, Errors } from './types'
 import { figmaRGBToHex } from './utils'
 import { cloneVariables } from './clone'
 
@@ -18,7 +18,7 @@ const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'st
 const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
-const uiSize = { width: 300, height: 300 }
+const uiSize = { width: 300, height: 353 }
 // Idk why I made this
 const OK = -1
 
@@ -65,23 +65,23 @@ figma.ui.onmessage = async (msg) => {
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
-      const collections: Collections = msg.message
+      const collections: Collections = msg.message.collections
       c(`Collections to swap ↴`)
       c(collections)
       const newCollection = collections.to === null
+      const scope: Scope = msg.message.scope
+      c(`Scope of swapping ↴`)
+      c(scope)
+
+      await figma.clientStorage.setAsync('scope', scope)
 
       if (newCollection) {
         collections.to = await cloneVariables(collections.from)
         c(`Cloned variables`)
       }
+      const message = await startSwap(collections, scope)
 
-      await swap(collections, nodes)
-      nodes.forEach(node => {
-        node.setRelaunchData({ relaunch: '' })
-        node.setPluginData('currentCollectionKey', msg.message.to.key)
-      })
-
-      finish(newCollection ? collections.to : null)
+      finish(newCollection ? collections.to : null, message)
       break
 
     case 'goToNode': {
@@ -98,6 +98,9 @@ figma.ui.onmessage = async (msg) => {
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
+  const scope = await figma.clientStorage.getAsync('scope')
+  figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
+
   collections = await getCollections()
 
   time('Getting current collection')
@@ -154,14 +157,59 @@ async function getCollections() {
   return collections
 }
 
-let swappingSimpleTime = 0
+/**
+ * Entry point to swap variables within selected in UI scope
+ * @param {Collections} collections — object containing source and destionation collections
+ * @param {Scope} scope — selection, current page or all pages
+ */
+async function startSwap(collections: Collections, scope: Scope) {
+  switch (scope) {
+    case 'all':
+      await swapAll(collections)
+      break
+    case 'page':
+      await swapPage(collections, figma.currentPage)
+      break
+    case 'selection':
+      const selection = figma.currentPage.selection
+      if (selection.length > 0)
+        await swapNodes(collections, selection)
+      else
+        return 'No layers selected'
+      break
+  }
+}
 
 /**
- * Main recursive function for swapping variables
+ * Swapping all the pages
+ * @param {Collections} collections — object containing source and destionation collections
+ */
+async function swapAll(collections: Collections) {
+  const pageCount = figma.root.children.length
+  for (let i = 0; i < pageCount; i++) {
+    const page = figma.root.children[i]
+    notify(`Swapping page ${i + 1} of ${pageCount}: ${page.name}`)
+    await swapPage(collections, page)
+  }
+}
+
+/**
+ * Checking if page is loaded and swapping variables on whole page
+ * @param {Collections} collections — object containing source and destionation collections
+ * @param {PageNode} page – page to swap
+ */
+async function swapPage(collections: Collections, page: PageNode) {
+  if (page !== figma.currentPage)
+    await page.loadAsync()
+  await swapNodes(collections, page.children)
+}
+
+/**
+ * Main recursive function for swapping variables 
  * @param {Collections} collections — object containing source and destionation collections
  * @param {SceneNode[]} nodes – nodes to affect
  */
-async function swap(collections: Collections, nodes) {
+async function swapNodes(collections: Collections, nodes) {
   // try {
   for (const node of nodes) {
     // Change explicit mode
@@ -175,7 +223,7 @@ async function swap(collections: Collections, nodes) {
       for (let [property, value] of Object.entries(node.boundVariables || {})) {
 
         if (property === 'componentProperties') {
-          await swapComponentProperty(node, property, value, collections)
+          await swapComponentProperty(node, value, collections)
           return
         }
 
@@ -188,9 +236,12 @@ async function swap(collections: Collections, nodes) {
         }
       }
 
+      node.setRelaunchData({ relaunch: '' })
+      node.setPluginData('currentCollectionKey', collections.to.key)
+
       // Recursion
       if (node.children && node.children.length > 0) {
-        await swap(collections, node.children)
+        await swapNodes(collections, node.children)
       }
     }
   }
@@ -274,6 +325,8 @@ async function swapTextNode(node: TextNode, collections) {
     }
   }
 }
+
+let swappingSimpleTime = 0
 
 /**
  * Swap variable of simple property
@@ -465,7 +518,7 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
 }
 
 // Ending the work
-function finish(newCollection = null) {
+function finish(newCollection = null, message?: string) {
   showTimers()
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
@@ -476,13 +529,15 @@ function finish(newCollection = null) {
     figma.ui.resize(uiSize.width, uiSize.height)
 
   working = false
-  if (count > 0) {
-    notify(actionMsgs[Math.floor(Math.random() * actionMsgs.length)] +
-      " " + (count + " variable") + (count === 1 ? "." : "s.") +
-      " Got " + (errorCount + " error") + (errorCount === 1 ? "." : "s."))
+  if (message)
+    notify(message)
+  else if (count > 0) {
+    notify(`${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+      + gotErrors ? ` Got ${errorCount} error${errorCount === 1 ? "." : "s."}` : '')
   }
-  else notify(idleMsgs[Math.floor(Math.random() * idleMsgs.length)] +
-    " Got " + (errorCount + " error") + (errorCount === 1 ? "." : "s."))
+  else
+    notify(`${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+      + gotErrors ? ` Got ${errorCount} error${errorCount === 1 ? "." : "s."}` : '')
 
   if (gotErrors) console.error(errors)
 }
@@ -549,4 +604,3 @@ function timeEnd(str, show = true) {
   times.delete(str)
   return time
 }
-

@@ -42,6 +42,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   [x] Ability to create new local collection.
 -   [x] Typographic variables.
 -   [x] Rebinding modes if the share the same name.
+-   [x] Multipage swap.
 -   [ ] Display number of variables in collection.
 -   [ ] Selecting the option that's in second select makes them swap.
 
