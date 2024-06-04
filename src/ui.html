@@ -337,6 +337,8 @@
     window.onmessage = async (event) => {
         const type = event.data.pluginMessage.type
         const message = event.data.pluginMessage.message
+        console.log(`Got ${type} message ↴`)
+        console.log(message)
 
         switch (type) {
             case 'collections':
@@ -367,14 +369,16 @@
                         name: from.dataset.name,
                         key: from.dataset.key,
                         id: from.dataset.id,
-                        local: from.dataset.local === 'true'
+                        local: from.dataset.local === 'true',
+                        modes: JSON.parse(from.dataset.modes)
                     },
                     to: to.dataset.id ? {
                         lib: to.dataset.lib,
                         name: to.dataset.name,
                         key: to.dataset.key,
                         id: to.dataset.id,
-                        local: to.dataset.local === 'true'
+                        local: to.dataset.local === 'true',
+                        modes: JSON.parse(to.dataset.modes)
                     } : null
                 }
             }
@@ -411,6 +415,7 @@
                 option.dataset.key = collection.key
                 option.dataset.id = collection.id
                 option.dataset.local = collection.local
+                option.dataset.modes = JSON.stringify(collection.modes)
                 optgroup.appendChild(option)
             }
             selectFrom.appendChild(optgroup)
@@ -463,7 +468,7 @@
         option.dataset.name = newCollection.name
         option.dataset.key = newCollection.key
         option.dataset.id = newCollection.id
-        option.dataset.local = newCollection.local
+        option.dataset.local = JSON.stringify(newCollection.local)
 
         const localOptgroupSelector = `optgroup[label="${newCollection.lib}"]`
         let localOptgroupFrom = selectFrom.querySelector(localOptgroupSelector)

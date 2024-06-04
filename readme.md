@@ -33,7 +33,6 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   Plugin can't swap variable in text with mixed fills. Do it manually instead.
 -   Plugin can't swap fonts and gradients and strokes in section. That’s not supported by Figma API yet. Do it manually instead.
 -   It may take some time to parse and swap variables when there're to many nodes or variables. Take a break and make some tea.
--   Variable modes will reset.
 -   Scoped variables was not tested.
 
 ## Possible features
@@ -42,6 +41,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   [x] Collections with 0 variables are hidden.
 -   [x] Ability to create new local collection.
 -   [x] Typographic variables.
+-   [x] Rebinding modes if the share the same name.
 -   [ ] Display number of variables in collection.
 -   [ ] Selecting the option that's in second select makes them swap.
 

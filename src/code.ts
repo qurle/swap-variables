@@ -95,7 +95,6 @@ figma.ui.onmessage = async (msg) => {
 }
 
 // Engine start
-figma.ui.postMessage("started")
 run(figma.currentPage)
 
 async function run(node: SceneNode | PageNode) {
@@ -111,9 +110,22 @@ async function run(node: SceneNode | PageNode) {
   figma.ui.postMessage({ type: 'collections', message: { collections: collections, current: currentCollectionKey } })
 }
 
+/**
+ * Saving local and external collections that have > 0 variables
+ * @returns {Collections} List of collections
+ */
 async function getCollections() {
   time('Getting internal collections')
-  const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({ key: el.key, lib: 'Local Collections', name: el.name, id: el.id, local: true }))
+  const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({
+    key: el.key,
+    lib: 'Local Collections',
+    name: el.name,
+    id: el.id,
+    local: true,
+    modes: el.modes
+  }))
+  c(`Got local collections ↴`)
+  c(localCollections)
   timeEnd('Getting internal collections')
 
   time('Getting external collections')
@@ -126,8 +138,10 @@ async function getCollections() {
     if (variables.length > 0) {
       externalCollections.push(collection)
       // Finding ID by importing variable from collection
-      collection['id'] = (await v.importVariableByKeyAsync(variables[0].key)).variableCollectionId
+      const firstVariable = await v.importVariableByKeyAsync(variables[0].key)
+      collection['id'] = firstVariable.variableCollectionId
       collection['local'] = false
+      collection['modes'] = (await v.getVariableCollectionByIdAsync(collection['id'])).modes
       // Renaming libraryName -> lib (as in local)
       delete Object.assign(collection, { ['lib']: collection['libraryName'] })['libraryName']
       c(collection)
@@ -142,10 +156,16 @@ async function getCollections() {
 
 let swappingSimpleTime = 0
 
+/**
+ * Main recursive function for swapping variables
+ * @param {Collections} collections — object containing source and destionation collections
+ * @param {SceneNode[]} nodes – nodes to affect
+ */
 async function swap(collections: Collections, nodes) {
-
+  // try {
   for (const node of nodes) {
-    c(`Swapping ${node.name}`)
+    // Change explicit mode
+    swapMode(node, collections)
 
     // Special text handling
     if (node.type === 'TEXT') {
@@ -155,7 +175,8 @@ async function swap(collections: Collections, nodes) {
       for (let [property, value] of Object.entries(node.boundVariables || {})) {
 
         if (property === 'componentProperties') {
-          error('unsupported', { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
+          await swapComponentProperty(node, property, value, collections)
+          return
         }
 
         // Complex immutable properties
@@ -173,8 +194,47 @@ async function swap(collections: Collections, nodes) {
       }
     }
   }
+  // } catch (e) {
+  //   figma.closePlugin(`${e}`)
+  // }
 }
 
+/**
+ * Swapping explicit mode if source collection has mode with the same name 
+ * @param {SceneNode} node – node that may have explicit mode
+ * @param {Collections} collections — object containing source and destionation collections
+ */
+async function swapMode(node, collections) {
+  const explicitMode = (node.explicitVariableModes[collections.from.id])
+  c(`Explicit mode ↴`)
+  c(explicitMode)
+  if (!explicitMode)
+    return
+
+  c(`Current collection ↴`)
+  c(collections.from)
+  c(`Current modes ↴`)
+  c(collections.from.modes)
+  const currentMode = collections.from.modes.find(mode => mode.modeId === explicitMode)
+  c(`Mode to swap: ${currentMode.name}`)
+  if (!currentMode)
+    return
+
+  c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
+  const newMode = collections.to.modes.find(mode => mode.name === currentMode.name)
+  if (!newMode) {
+    error('noMatch', { name: `Mode "${currentMode.name}"`, type: 'STRING', value: '?', nodeName: node.name, nodeId: node.id })
+    return
+  }
+
+  node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
+}
+
+/**
+ * Swap variables of text node
+ * @param {SceneNode} node – node to affect
+ * @param {Collections} collections — object containing source and destionation collections
+ */
 async function swapTextNode(node: TextNode, collections) {
   c(`Working with text`)
   if (!Object.keys(node.boundVariables)) {
@@ -215,9 +275,19 @@ async function swapTextNode(node: TextNode, collections) {
   }
 }
 
+/**
+ * Swap variable of simple property
+ * @param {SceneNode} node – node to affect
+ * @param value – current value
+ * @param property – name of property to swap
+ * @param {Collections} collections — object containing source and destionation collections
+ * @param range — range of application (for texts)
+ */
 async function swapSimpleProperty(node, value, property, collections, range = []) {
   time('Swapping simple')
   c(`Swapping simple property: ${property}`)
+  c(`Current value:`)
+  c(node[property])
   const newVariable = await getNewVariable(value as Variable, collections, node)
   if (newVariable) {
     if (property === 'characters' && newVariable.resolvedType === 'FLOAT') {
@@ -239,6 +309,12 @@ let swappingComplexTime = 0
 let boundingComplexTime = 0
 let layers = 0
 
+/**
+ * Swap variable of complex property
+ * @param {SceneNode} node – node to affect
+ * @param property – name of property to swap
+ * @param {Collections} collections — object containing source and destionation collections
+ */
 async function swapComplexProperty(node, property: string, collections: Collections) {
   time('Swapping complex')
   let setBoundVarible
@@ -293,6 +369,31 @@ async function swapComplexProperty(node, property: string, collections: Collecti
   swappingComplexTime += timeEnd('Swapping complex', false)
 }
 
+/**
+ * Swap variable of instance variant property
+ * @param {SceneNode} node – node to affect
+ * @param value – current value
+ * @param {Collections} collections — object containing source and destionation collections
+ */
+async function swapComponentProperty(node, value, collections: Collections) {
+  for (const [propertyName, variable] of Object.entries(value)) {
+    c(`Property ↴`)
+    c(propertyName)
+    c(`Value ↴`)
+    c(value)
+
+    if (!Object.keys(node.componentProperties).includes(propertyName))
+      continue
+
+    const newVariable = await getNewVariable(variable, collections, node)
+
+    if (!newVariable)
+      continue
+    node.setProperties({ [propertyName]: v.createVariableAlias(newVariable) })
+  }
+}
+
+
 async function getNewVariable(variable, collections: Collections, node) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
@@ -335,6 +436,8 @@ async function findVariable(collection, variable) {
 
 export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
   gotErrors = true
+  c(`Encountered error: ${type} ↴`)
+  c(options)
   if (!errors[type])
     errors[type] = new Array()
 
@@ -359,14 +462,6 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
   }
   errors[type].push(options)
   c(`Can't swap ${type === 'noMatch' ? `variable ${options.name} for ` : `${options.property} of ${options.nodeName}`}: ${type}`, 'error')
-}
-
-async function replaceComponentProperties(node, collections: Collections) {
-  for (const componentProperty of node.componentProperties) {
-    if (componentProperty.hasOwnProperty('boundVariables')) {
-      // Waiting for Figma Plugin API to have setBoundVariableForProperty
-    }
-  }
 }
 
 // Ending the work

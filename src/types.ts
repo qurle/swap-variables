@@ -7,6 +7,10 @@ export interface Collection {
     lib: string,
     name: string,
     key: string,
+    modes: {
+        name: string,
+        modeId: string
+    }[],
     id?: string,
     local?: boolean
 }
