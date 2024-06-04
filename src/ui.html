@@ -476,8 +476,8 @@
         const to = selectTo.selectedOptions[0]
 
         const scope = scopeSelect.querySelector('input:checked').value
-        console.log('Checked scope ↴')
-        console.log(scopeSelect.querySelector('input:checked'))
+        // console.log('Checked scope ↴')
+        // console.log(scopeSelect.querySelector('input:checked'))
 
         parent.postMessage({
             pluginMessage: {
@@ -566,7 +566,7 @@
     }
 
     function defineScope(scope) {
-        console.log(`Defining scope: ${scope}`)
+        // console.log(`Defining scope: ${scope}`)
         if (['selection', 'page', 'all'].includes(scope))
             scopeSelect.querySelector(`input[value=${scope}]`).checked = true
     }
@@ -686,7 +686,7 @@
                     listItem.addEventListener('click', selectNode)
                     listItem.addEventListener('keydown', (event) => {
                         if (event.key === 'Enter' || event.key === 'Space') {
-                            console.log(`Selected ${error.nodeId}`)
+                            // console.log(`Selected ${error.nodeId}`)
                             selectNode()
                         }
                     })
