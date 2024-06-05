@@ -159,7 +159,7 @@ async function getCollections() {
 
 /**
  * Entry point to swap variables within selected in UI scope
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  * @param {Scope} scope — selection, current page or all pages
  */
 async function startSwap(collections: Collections, scope: Scope) {
@@ -182,7 +182,7 @@ async function startSwap(collections: Collections, scope: Scope) {
 
 /**
  * Swapping all the pages
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  */
 async function swapAll(collections: Collections) {
   const pageCount = figma.root.children.length
@@ -195,7 +195,7 @@ async function swapAll(collections: Collections) {
 
 /**
  * Checking if page is loaded and swapping variables on whole page
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  * @param {PageNode} page – page to swap
  */
 async function swapPage(collections: Collections, page: PageNode) {
@@ -206,12 +206,15 @@ async function swapPage(collections: Collections, page: PageNode) {
 
 /**
  * Main recursive function for swapping variables 
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  * @param {SceneNode[]} nodes – nodes to affect
  */
 async function swapNodes(collections: Collections, nodes) {
+  c(`Nodes to swap ↴`)
+  c(nodes)
   // try {
   for (const node of nodes) {
+    c(`Swapping node ${node.name}`)
     // Change explicit mode
     swapMode(node, collections)
 
@@ -224,25 +227,24 @@ async function swapNodes(collections: Collections, nodes) {
 
         if (property === 'componentProperties') {
           await swapComponentProperty(node, value, collections)
-          return
         }
-
-        // Complex immutable properties
-        if (Array.isArray(value)) {
+        else if (Array.isArray(value)) {
+          // Complex immutable properties
           await swapComplexProperty(node, property, collections)
         }
         else {
           await swapSimpleProperty(node, value, property, collections)
         }
       }
+    }
 
-      node.setRelaunchData({ relaunch: '' })
-      node.setPluginData('currentCollectionKey', collections.to.key)
+    node.setRelaunchData({ relaunch: '' })
+    node.setPluginData('currentCollectionKey', collections.to.key)
 
-      // Recursion
-      if (node.children && node.children.length > 0) {
-        await swapNodes(collections, node.children)
-      }
+    // Recursion
+    if (node.children && node.children.length > 0) {
+      c(`Got children`)
+      await swapNodes(collections, node.children)
     }
   }
   // } catch (e) {
@@ -253,30 +255,30 @@ async function swapNodes(collections: Collections, nodes) {
 /**
  * Swapping explicit mode if source collection has mode with the same name 
  * @param {SceneNode} node – node that may have explicit mode
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  */
 async function swapMode(node, collections) {
   const explicitMode = (node.explicitVariableModes[collections.from.id])
-  c(`Explicit mode ↴`)
-  c(explicitMode)
   if (!explicitMode)
     return
+  c(`Explicit mode ↴`)
+  c(explicitMode)
 
   c(`Current collection ↴`)
   c(collections.from)
   c(`Current modes ↴`)
   c(collections.from.modes)
   const currentMode = collections.from.modes.find(mode => mode.modeId === explicitMode)
-  c(`Mode to swap: ${currentMode.name}`)
   if (!currentMode)
     return
+  c(`Mode to swap: ${currentMode.name}`)
 
-  c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
   const newMode = collections.to.modes.find(mode => mode.name === currentMode.name)
   if (!newMode) {
     error('noMatch', { name: `Mode "${currentMode.name}"`, type: 'STRING', value: '?', nodeName: node.name, nodeId: node.id })
     return
   }
+  c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
 
   node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
 }
@@ -284,7 +286,7 @@ async function swapMode(node, collections) {
 /**
  * Swap variables of text node
  * @param {SceneNode} node – node to affect
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  */
 async function swapTextNode(node: TextNode, collections) {
   c(`Working with text`)
@@ -333,7 +335,7 @@ let swappingSimpleTime = 0
  * @param {SceneNode} node – node to affect
  * @param value – current value
  * @param property – name of property to swap
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  * @param range — range of application (for texts)
  */
 async function swapSimpleProperty(node, value, property, collections, range = []) {
@@ -366,7 +368,7 @@ let layers = 0
  * Swap variable of complex property
  * @param {SceneNode} node – node to affect
  * @param property – name of property to swap
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  */
 async function swapComplexProperty(node, property: string, collections: Collections) {
   time('Swapping complex')
@@ -426,7 +428,7 @@ async function swapComplexProperty(node, property: string, collections: Collecti
  * Swap variable of instance variant property
  * @param {SceneNode} node – node to affect
  * @param value – current value
- * @param {Collections} collections — object containing source and destionation collections
+ * @param {Collections} collections — object containing source and destination collections
  */
 async function swapComponentProperty(node, value, collections: Collections) {
   for (const [propertyName, variable] of Object.entries(value)) {
@@ -435,13 +437,17 @@ async function swapComponentProperty(node, value, collections: Collections) {
     c(`Value ↴`)
     c(value)
 
-    if (!Object.keys(node.componentProperties).includes(propertyName))
+    if (!Object.keys(node.componentProperties).includes(propertyName)) {
+      c(`Not in destination`)
       continue
+    }
 
     const newVariable = await getNewVariable(variable, collections, node)
 
-    if (!newVariable)
+    if (!newVariable) {
+      c(`No new variable`)
       continue
+    }
     node.setProperties({ [propertyName]: v.createVariableAlias(newVariable) })
   }
 }
