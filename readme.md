@@ -43,6 +43,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   [x] Typographic variables.
 -   [x] Rebinding modes if the share the same name.
 -   [x] Multipage swap.
+-   [x] Swapping variables in local styles.
 -   [ ] Display number of variables in collection.
 -   [ ] Selecting the option that's in second select makes them swap.
 
