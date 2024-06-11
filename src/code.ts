@@ -1,5 +1,5 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = false
+const LOGS = true
 const TIMERS = false
 
 import { Scope, Collection, Collections, Errors } from './types'
@@ -36,6 +36,8 @@ let errors: Errors = {
   unsupported: []
 }
 let gotErrors = false
+let currentScope: Scope
+let loadedFonts = []
 
 // Shorthands
 const v = figma.variables
@@ -69,22 +71,28 @@ figma.ui.onmessage = async (msg) => {
       c(`Collections to swap ↴`)
       c(collections)
       const newCollection = collections.to === null
-      const scope: Scope = msg.message.scope
+      currentScope = msg.message.scope
       c(`Scope of swapping ↴`)
-      c(scope)
+      c(currentScope)
 
-      await figma.clientStorage.setAsync('scope', scope)
+      await figma.clientStorage.setAsync('scope', currentScope)
 
       if (newCollection) {
         collections.to = await cloneVariables(collections.from)
         c(`Cloned variables`)
       }
-      const message = await startSwap(collections, scope)
+      const message = await startSwap(collections, currentScope)
 
       finish(newCollection ? collections.to : null, message)
       break
 
     case 'goToNode': {
+      if (currentScope === 'styles') {
+
+        notify(`Error in ${(await figma.getStyleByIdAsync(msg.message.nodeId)).name} style`)
+        break
+      }
+
       const node = await figma.getNodeByIdAsync(msg.message.nodeId)
       figma.viewport.scrollAndZoomIntoView([node])
       figma.currentPage.selection = [node as SceneNode]
@@ -164,10 +172,10 @@ async function getCollections() {
  */
 async function startSwap(collections: Collections, scope: Scope) {
   switch (scope) {
-    case 'all':
+    case 'allPages':
       await swapAll(collections)
       break
-    case 'page':
+    case 'thisPage':
       await swapPage(collections, figma.currentPage)
       break
     case 'selection':
@@ -176,6 +184,9 @@ async function startSwap(collections: Collections, scope: Scope) {
         await swapNodes(collections, selection)
       else
         return 'No layers selected'
+      break
+    case 'styles':
+      await swapStyles(collections)
       break
   }
 }
@@ -328,6 +339,67 @@ async function swapTextNode(node: TextNode, collections) {
   }
 }
 
+/**
+ * Swapping local styles 
+ * @param {Collections} collections — object containing source and destination collections
+ */
+async function swapStyles(collections) {
+
+  // This styles got same layers logic, but different names in objects
+  const styleReferences = {
+    grids: {
+      getFunction: figma.getLocalGridStylesAsync,
+      layersName: 'layoutGrids',
+      bindFunction: v.setBoundVariableForLayoutGrid
+    },
+    effects: {
+      getFunction: figma.getLocalEffectStylesAsync,
+      layersName: 'effects',
+      bindFunction: v.setBoundVariableForEffect
+    },
+    paints: {
+      getFunction: figma.getLocalPaintStylesAsync,
+      layersName: 'paints',
+      bindFunction: v.setBoundVariableForPaint
+    }
+  }
+  c(`Swapping styles`)
+  for (const [styleName, reference] of Object.entries(styleReferences)) {
+    const styles = await reference.getFunction()
+    c(`Got ${styles.length} ${styleName}`)
+    for (const style of styles) {
+      c(`Got style ${style.name}`)
+      if (style.boundVariables && Object.entries(style.boundVariables).length > 0) {
+        c(`Swapping`)
+        style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], collections, reference.bindFunction, null, style)
+      }
+    }
+  }
+
+  // Text doesn't contain any layers so logic differs here
+  const textStyles = await figma.getLocalTextStylesAsync()
+  for (const style of textStyles) {
+    c(`Bound variables ↴`)
+    c(style.boundVariables)
+    await figma.loadFontAsync(style.fontName)
+    for (const [field, variable] of Object.entries(style.boundVariables)) {
+      c(`Setting field ${field}`)
+      c(`Current variable ↴`)
+      c(variable)
+      const newVariable = await getNewVariable(variable, collections, null, style)
+      if (!newVariable)
+        continue
+      if (field === 'fontFamily') {
+        for (const family of Object.values(newVariable.valuesByMode)) {
+          await loadFonts(family)
+        }
+      }
+      //@ts-ignore
+      style.setBoundVariable(field, await getNewVariable(variable, collections, null, style))
+    }
+  }
+}
+
 let swappingSimpleTime = 0
 
 /**
@@ -362,7 +434,7 @@ async function swapSimpleProperty(node, value, property, collections, range = []
 
 let swappingComplexTime = 0
 let boundingComplexTime = 0
-let layers = 0
+let layerCount = 0
 
 /**
  * Swap variable of complex property
@@ -372,12 +444,12 @@ let layers = 0
  */
 async function swapComplexProperty(node, property: string, collections: Collections) {
   time('Swapping complex')
-  let setBoundVarible
+  let bindFunction
   c(`Swapping complex property: ${property}`)
 
   switch (property) {
     case 'fills':
-      setBoundVarible = v.setBoundVariableForPaint
+      bindFunction = v.setBoundVariableForPaint
       break
     case 'strokes':
       if (node.type === 'SECTION') {
@@ -387,13 +459,13 @@ async function swapComplexProperty(node, property: string, collections: Collecti
         return
       }
       else
-        setBoundVarible = v.setBoundVariableForPaint
+        bindFunction = v.setBoundVariableForPaint
       break
     case 'layoutGrids':
-      setBoundVarible = v.setBoundVariableForLayoutGrid
+      bindFunction = v.setBoundVariableForLayoutGrid
       break
     case 'effects':
-      setBoundVarible = v.setBoundVariableForEffect
+      bindFunction = v.setBoundVariableForEffect
       break
     default:
       error('badProp', { property: property, nodeName: node.name, nodeId: node.id })
@@ -401,9 +473,14 @@ async function swapComplexProperty(node, property: string, collections: Collecti
   }
 
   // Swapping by layers
-  node[property] = await Promise.all(
-    node[property].map(async (layer) => {
-      layers++
+  node[property] = await swapPropertyLayers(node[property], collections, bindFunction, node)
+  swappingComplexTime += timeEnd('Swapping complex', false)
+}
+
+async function swapPropertyLayers(layers, collections, bindFunction, node, style?) {
+  return await Promise.all(
+    layers.map(async (layer) => {
+      layerCount++
       c(`Current layer ↴`)
       c(layer)
       if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
@@ -411,17 +488,16 @@ async function swapComplexProperty(node, property: string, collections: Collecti
 
       c(`Found ${Object.entries(layer.boundVariables).length} variables`)
       for (const [field, variable] of Object.entries(layer.boundVariables)) {
-        const newVariable = await getNewVariable(variable, collections, node)
+        const newVariable = await getNewVariable(variable, collections, node, style)
         if (newVariable) {
           c('found new variable')
           time('Bounding complex')
-          layer = setBoundVarible(layer, field, newVariable)
+          layer = bindFunction(layer, field, newVariable)
           boundingComplexTime += timeEnd('Bounding complex', false)
         }
       }
       return layer
     }))
-  swappingComplexTime += timeEnd('Swapping complex', false)
 }
 
 /**
@@ -453,7 +529,7 @@ async function swapComponentProperty(node, value, collections: Collections) {
 }
 
 
-async function getNewVariable(variable, collections: Collections, node) {
+async function getNewVariable(variable, collections: Collections, node, style?) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
   c(variableObject)
@@ -462,18 +538,20 @@ async function getNewVariable(variable, collections: Collections, node) {
     return
   }
 
-  c(`Varaible belongs to source collection`)
+  c(`Variable belongs to source collection`)
   let newVariable
   try {
     newVariable = await findVariable(collections.to, variableObject)
     count++
   }
   catch {
-    let { value, resolvedType } = variableObject.resolveForConsumer(node)
-    if (resolvedType === 'COLOR') {
+    let value = node ?
+      variableObject.resolveForConsumer(node).value : '?'
+
+    if (variableObject.resolvedType === 'COLOR') {
       value = figmaRGBToHex(value as RGB | RGBA)
     }
-    error('noMatch', { name: variableObject.name, type: resolvedType, value: value, nodeName: node.name, nodeId: node.id })
+    error('noMatch', { name: variableObject.name, type: variableObject.resolvedType, value: value, nodeName: node?.name || style?.name || null, nodeId: node?.id || style?.id || null })
   }
 
   return newVariable || variableObject
@@ -488,7 +566,8 @@ async function findVariable(collection, variable) {
   const newVariable = collection.local === true ?
     (await v.getLocalVariablesAsync()).find(el => el.variableCollectionId === collection.id && el.name === variable.name) :
     await v.importVariableByKeyAsync((await tl.getVariablesInLibraryCollectionAsync(collection.key)).find(el => el.name === name).key)
-  c(`Found new ${newVariable.name} with id ${newVariable.id}`)
+  c(`Found new ${newVariable.name} with id ${newVariable.id} ↴`)
+  c(newVariable)
   findingTime += timeEnd('Finding', false)
   return newVariable
 }
@@ -521,6 +600,16 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
   }
   errors[type].push(options)
   c(`Can't swap ${type === 'noMatch' ? `variable ${options.name} for ` : `${options.property} of ${options.nodeName}`}: ${type}`, 'error')
+}
+
+async function loadFonts(fontFamily) {
+  if (loadedFonts.includes(fontFamily))
+    return
+
+  const fonts = (await figma.listAvailableFontsAsync()).filter(font => font.fontName.family === fontFamily)
+  for (const font of fonts)
+    await figma.loadFontAsync(font.fontName)
+  loadedFonts.push(fontFamily)
 }
 
 // Ending the work
@@ -567,16 +656,16 @@ function cancel() {
 function showTimers() {
   c(`⏱️ Swapping simple: ${swappingSimpleTime}`)
   c(`⏱️ Bounding complex: ${boundingComplexTime}`)
-  c(`Time per layer: ${Math.round(boundingComplexTime / layers)}`)
+  c(`Time per layer: ${Math.round(boundingComplexTime / layerCount)}`)
   c(`⏱️ Swapping complex: ${swappingComplexTime}`)
-  c(`Time per layer: ${Math.round(swappingComplexTime / layers)}`)
+  c(`Time per layer: ${Math.round(swappingComplexTime / layerCount)}`)
   c(`⏱️ Finding: ${findingTime}`)
   c(`Time per variable: ${Math.round(findingTime / count)}`)
   swappingSimpleTime = 0
   swappingComplexTime = 0
   boundingComplexTime = 0
   findingTime = 0
-  layers = 0
+  layerCount = 0
 }
 
 export function c(str: any = 'here', type?: 'error' | 'warn') {

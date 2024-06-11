@@ -173,6 +173,10 @@
         transition: opacity var(--transition-rule);
     }
 
+    .segmented input~span svg {
+        transition: transform var(--transition-rule);
+    }
+
     .segmented input:checked {
         background-color: var(--figma-color-bg);
         box-shadow: 0 2px 8px -4px #00000040;
@@ -182,6 +186,9 @@
         opacity: 1;
     }
 
+    .segmented input:checked~span svg {
+        transform: scale(1.1) rotate(10deg);
+    }
 
     .segmented input:active {
         transform: scale(.95);
@@ -190,9 +197,9 @@
     .segmented .tooltip {
         position: absolute;
         top: calc(-1 * var(--gap-s));
-        right: 0;
-        width: 8rem;
+        text-align: center;
 
+        width: max-content;
         opacity: 0;
 
         border-radius: var(--radius-s);
@@ -203,6 +210,11 @@
 
         transform: translateY(-90%);
         transition: transform var(--transition-rule), opacity var(--transition-rule);
+    }
+
+    .segmented .tooltip span {
+        opacity: .5;
+        color: var(--figma-color-text-oninverse);
     }
 
     .segmented input:hover~.tooltip,
@@ -379,15 +391,54 @@
         <fieldset class="segmented scope">
             <label>
                 <input type="radio" name="scope" value="selection" checked />
-                <span>Selection</span></label>
-            <label>
-                <input type="radio" name="scope" value="page" />
-                <span>This page</label>
-            <label>
-                <input type="radio" name="scope" value="all" />
-                <span>All pages</span>
+                <span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                        <rect width="3" height="3" x="2.5" y="2.5" stroke="currentColor" rx="1" />
+                        <rect width="3" height="3" x="10.5" y="2.5" stroke="currentColor" rx="1" />
+                        <rect width="3" height="3" x="10.5" y="10.5" stroke="currentColor" rx="1" />
+                        <rect width="3" height="3" x="2.5" y="10.5" stroke="currentColor" rx="1" />
+                        <path stroke="currentColor" d="M5 3.5h6M3.5 11V5M5 12.5h6m1.5-1.5V5" opacity=".5" />
+                    </svg>
+                </span>
                 <div class="tooltip">
-                    Careful. It might take a lot of time
+                    Selection
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="scope" value="thisPage" />
+                <span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                        <path stroke="currentColor" d="M8.5 3v2.5a1 1 0 0 0 1 1H12" opacity=".5" />
+                        <path stroke="currentColor" stroke-linejoin="round" d="M8.086 2.5H4.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L8.793 2.793a1 1 0 0 0-.707-.293Z" />
+                    </svg>
+                </span>
+                <div class="tooltip">
+                    This page
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="scope" value="allPages" />
+                <span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                        <path stroke="currentColor" d="M9.5 3v2.5a1 1 0 0 0 1 1H13" opacity=".5" />
+                        <path stroke="currentColor" stroke-linejoin="round" d="M9.086 2.5H6.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L9.793 2.793a1 1 0 0 0-.707-.293Z" />
+                        <path fill="currentColor" d="M3 4a1 1 0 0 1 1-1v10a1 1 0 0 1-1-1V4ZM1 5a1 1 0 0 1 1-1v8a1 1 0 0 1-1-1V5Z" opacity=".5" />
+                    </svg>
+                </span>
+                <div class="tooltip">
+                    All pages<br /><span>Might be slow</span>
+                </div>
+            </label>
+            <label>
+                <input type="radio" name="scope" value="styles" />
+                <span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                        <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-linejoin="round" />
+                        <path fill="currentColor" fill-rule="evenodd" d="M5 11.707V13h1v-2.293l-1 1Zm2-2V13.5h1V8.707l-1 1Zm2-2V13.5h1V6.707l-1 1Zm2-2V12.5h1V4.707l-1 1Z" clip-rule="evenodd" opacity=".5" />
+                    </svg>
+                </span>
+                <div class="tooltip">
+                    Local styles
                 </div>
             </label>
         </fieldset>
@@ -567,7 +618,7 @@
 
     function defineScope(scope) {
         // console.log(`Defining scope: ${scope}`)
-        if (['selection', 'page', 'all'].includes(scope))
+        if (['selection', 'thisPage', 'allPages', 'styles'].includes(scope))
             scopeSelect.querySelector(`input[value=${scope}]`).checked = true
     }
 
@@ -636,7 +687,8 @@
                         parent.postMessage({
                             pluginMessage: {
                                 type: 'goToNode', message: {
-                                    nodeId: error.nodeId
+                                    nodeId: error.nodeId,
+                                    nodeName: error.nodeName
                                 }
                             }
                         }, '*')

@@ -1,4 +1,4 @@
-export type Scope = 'selection' | 'page' | 'all'
+export type Scope = 'selection' | 'thisPage' | 'allPages' | 'styles'
 
 export interface Collections {
     from: Collection,
