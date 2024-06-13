@@ -7,7 +7,7 @@ import { figmaRGBToHex } from './utils'
 import { cloneVariables } from './clone'
 
 // Constants
-const actionMsgs = ["Swapped", "Affected", "Made it with", "Replaced", "Updated"]
+const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
@@ -279,6 +279,15 @@ async function swapMode(node, collections) {
   c(collections.from)
   c(`Current modes ↴`)
   c(collections.from.modes)
+  if (node.type === 'INSTANCE') {
+    error('unsupported', {
+      property: 'mode',
+      type: node.type,
+      nodeName: node.name,
+      nodeId: node.id
+    })
+    return
+  }
   const currentMode = collections.from.modes.find(mode => mode.modeId === explicitMode)
   if (!currentMode)
     return
@@ -628,8 +637,7 @@ function finish(newCollection = null, message?: string) {
   if (message)
     notify(message)
   else if (count > 0) {
-    console.log(`count: ${count}`)
-    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} propert${(count === 1 ? "y." : "ies.")}`
     const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
     notify(`${actionMsg} ${errorMsg}`)
   }
