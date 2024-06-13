@@ -1,5 +1,5 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = true
+const LOGS = false
 const TIMERS = false
 
 import { Scope, Collection, Collections, Errors } from './types'
@@ -18,7 +18,7 @@ const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'st
 const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
-const uiSize = { width: 300, height: 353 }
+const uiSize = { width: 300, height: 336 }
 // Idk why I made this
 const OK = -1
 

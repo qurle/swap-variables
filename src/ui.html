@@ -76,7 +76,7 @@
         gap: var(--gap-l);
     }
 
-    .select label {
+    .form-item>label {
         display: block;
         padding: 0 var(--gap-s);
         margin-bottom: var(--gap-s);
@@ -297,6 +297,10 @@
         text-decoration-color: var(--figma-color-text-tertiary);
     }
 
+    .feedback {
+        font-size: var(--font-size-s);
+    }
+
     svg {
         color: var(--figma-color-icon);
     }
@@ -372,7 +376,7 @@
 </div>
 <div class="container">
     <form>
-        <div class="select">
+        <div class="form-item">
             <label for="from">Source</label>
             <div class="select-wrapper">
                 <select id="from" name="from">
@@ -380,7 +384,7 @@
                 </select>
             </div>
         </div>
-        <div class="select">
+        <div class="form-item">
             <label for="to">Swap to</label>
             <div class="select-wrapper">
                 <select id="to" name="to">
@@ -388,60 +392,63 @@
                 </select>
             </div>
         </div>
-        <fieldset class="segmented scope">
-            <label>
-                <input type="radio" name="scope" value="selection" checked />
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
-                        <rect width="3" height="3" x="2.5" y="2.5" stroke="currentColor" rx="1" />
-                        <rect width="3" height="3" x="10.5" y="2.5" stroke="currentColor" rx="1" />
-                        <rect width="3" height="3" x="10.5" y="10.5" stroke="currentColor" rx="1" />
-                        <rect width="3" height="3" x="2.5" y="10.5" stroke="currentColor" rx="1" />
-                        <path stroke="currentColor" d="M5 3.5h6M3.5 11V5M5 12.5h6m1.5-1.5V5" opacity=".5" />
-                    </svg>
-                </span>
-                <div class="tooltip">
-                    Selection
-                </div>
-            </label>
-            <label>
-                <input type="radio" name="scope" value="thisPage" />
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
-                        <path stroke="currentColor" d="M8.5 3v2.5a1 1 0 0 0 1 1H12" opacity=".5" />
-                        <path stroke="currentColor" stroke-linejoin="round" d="M8.086 2.5H4.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L8.793 2.793a1 1 0 0 0-.707-.293Z" />
-                    </svg>
-                </span>
-                <div class="tooltip">
-                    This page
-                </div>
-            </label>
-            <label>
-                <input type="radio" name="scope" value="allPages" />
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
-                        <path stroke="currentColor" d="M9.5 3v2.5a1 1 0 0 0 1 1H13" opacity=".5" />
-                        <path stroke="currentColor" stroke-linejoin="round" d="M9.086 2.5H6.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L9.793 2.793a1 1 0 0 0-.707-.293Z" />
-                        <path fill="currentColor" d="M3 4a1 1 0 0 1 1-1v10a1 1 0 0 1-1-1V4ZM1 5a1 1 0 0 1 1-1v8a1 1 0 0 1-1-1V5Z" opacity=".5" />
-                    </svg>
-                </span>
-                <div class="tooltip">
-                    All pages<br /><span>Might be slow</span>
-                </div>
-            </label>
-            <label>
-                <input type="radio" name="scope" value="styles" />
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
-                        <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-linejoin="round" />
-                        <path fill="currentColor" fill-rule="evenodd" d="M5 11.707V13h1v-2.293l-1 1Zm2-2V13.5h1V8.707l-1 1Zm2-2V13.5h1V6.707l-1 1Zm2-2V12.5h1V4.707l-1 1Z" clip-rule="evenodd" opacity=".5" />
-                    </svg>
-                </span>
-                <div class="tooltip">
-                    Local styles
-                </div>
-            </label>
-        </fieldset>
+        <div class="form-item">
+            <label for="scope">Scope</label>
+            <fieldset class="segmented scope">
+                <label>
+                    <input type="radio" name="scope" value="selection" checked />
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                            <rect width="3" height="3" x="2.5" y="2.5" stroke="currentColor" rx="1" />
+                            <rect width="3" height="3" x="10.5" y="2.5" stroke="currentColor" rx="1" />
+                            <rect width="3" height="3" x="10.5" y="10.5" stroke="currentColor" rx="1" />
+                            <rect width="3" height="3" x="2.5" y="10.5" stroke="currentColor" rx="1" />
+                            <path stroke="currentColor" d="M5 3.5h6M3.5 11V5M5 12.5h6m1.5-1.5V5" opacity=".5" />
+                        </svg>
+                    </span>
+                    <div class="tooltip">
+                        Selection
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="scope" value="thisPage" />
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                            <path stroke="currentColor" d="M8.5 3v2.5a1 1 0 0 0 1 1H12" opacity=".5" />
+                            <path stroke="currentColor" stroke-linejoin="round" d="M8.086 2.5H4.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L8.793 2.793a1 1 0 0 0-.707-.293Z" />
+                        </svg>
+                    </span>
+                    <div class="tooltip">
+                        This page
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="scope" value="allPages" />
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                            <path stroke="currentColor" d="M9.5 3v2.5a1 1 0 0 0 1 1H13" opacity=".5" />
+                            <path stroke="currentColor" stroke-linejoin="round" d="M9.086 2.5H6.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6.914a1 1 0 0 0-.293-.707L9.793 2.793a1 1 0 0 0-.707-.293Z" />
+                            <path fill="currentColor" d="M3 4a1 1 0 0 1 1-1v10a1 1 0 0 1-1-1V4ZM1 5a1 1 0 0 1 1-1v8a1 1 0 0 1-1-1V5Z" opacity=".5" />
+                        </svg>
+                    </span>
+                    <div class="tooltip">
+                        All pages<br /><span>Might be slow</span>
+                    </div>
+                </label>
+                <label>
+                    <input type="radio" name="scope" value="styles" />
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16">
+                            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-linejoin="round" />
+                            <path fill="currentColor" fill-rule="evenodd" d="M5 11.707V13h1v-2.293l-1 1Zm2-2V13.5h1V8.707l-1 1Zm2-2V13.5h1V6.707l-1 1Zm2-2V12.5h1V4.707l-1 1Z" clip-rule="evenodd" opacity=".5" />
+                        </svg>
+                    </span>
+                    <div class="tooltip">
+                        Local styles
+                    </div>
+                </label>
+            </fieldset>
+        </div>
         <div class="buttons">
             <button title="Reverse collections" class="secondary reverse" type="button">
                 <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -451,7 +458,7 @@
             </button>
             <button type="submit" class="primary">Swap Variables</button>
         </div>
-        <a target="_top" href="mailto:nikita.denisov@vk.team?subject=Swap%20Variables">Send feedback</a>
+        <!-- <a target="_top" class="feedback" href="mailto:nikita.denisov@vk.team?subject=Swap%20Variables">Send feedback</a> -->
         <div class="errors">
             <h2>0 errors</h2>
             <ul class="limitation">

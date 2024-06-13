@@ -11,7 +11,7 @@ Just like Swap Libraries, but for variables.
 Run it from the Quick Actions or Plugin menu.
 Select some layers, choose source and destination variable collections and hit Swap button.
 
-If no layers are select, the plugin will replace variables for entire page.
+You can choose the scope for plugin: selection, current page, all pages or local styles.
 
 After all, you may see some error. Click on them to focus viewport on problematic objects.
 
