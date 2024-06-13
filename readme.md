@@ -49,7 +49,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 
 ## Problem? Idea? Kind words?
 
-I accept feature suggestions and ideas to improve the plugin. No need to mess with hidden layers? Swap all pages at once? Useful exceptions? If you have any ideas or issues, let me know in the comments.
+I accept feature suggestions and ideas to improve the plugin. No need to mess with hidden layers? Useful exceptions? If you have any ideas or issues, let me know in the comments.
 
 Alternatively you can contact me via e-mail at [nikita.denisov@vk.team](mailto:nikita.denisov@vk.team?subject=Swap%20Variables) and [Telegram](https://t.me/qurle).
 

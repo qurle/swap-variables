@@ -7,7 +7,7 @@ import { figmaRGBToHex } from './utils'
 import { cloneVariables } from './clone'
 
 // Constants
-const actionMsgs = ["Swapped", "Affected", "Made it with", "Fixed", "Updated"]
+const actionMsgs = ["Swapped", "Affected", "Made it with", "Replaced", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
@@ -481,6 +481,7 @@ async function swapPropertyLayers(layers, collections, bindFunction, node, style
   return await Promise.all(
     layers.map(async (layer) => {
       layerCount++
+      count++
       c(`Current layer ↴`)
       c(layer)
       if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
@@ -627,13 +628,16 @@ function finish(newCollection = null, message?: string) {
   if (message)
     notify(message)
   else if (count > 0) {
-    notify(`${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
-      + gotErrors ? ` Got ${errorCount} error${errorCount === 1 ? "." : "s."}` : '')
+    console.log(`count: ${count}`)
+    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+    const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
+    notify(`${actionMsg} ${errorMsg}`)
   }
-  else
-    notify(`${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
-      + gotErrors ? ` Got ${errorCount} error${errorCount === 1 ? "." : "s."}` : '')
-
+  else {
+    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+    const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
+    notify(`${idleMsg} ${errorMsg}`)
+  }
   if (gotErrors) console.error(errors)
 }
 
@@ -654,13 +658,13 @@ function cancel() {
 }
 
 function showTimers() {
-  c(`⏱️ Swapping simple: ${swappingSimpleTime}`)
-  c(`⏱️ Bounding complex: ${boundingComplexTime}`)
-  c(`Time per layer: ${Math.round(boundingComplexTime / layerCount)}`)
-  c(`⏱️ Swapping complex: ${swappingComplexTime}`)
-  c(`Time per layer: ${Math.round(swappingComplexTime / layerCount)}`)
-  c(`⏱️ Finding: ${findingTime}`)
-  c(`Time per variable: ${Math.round(findingTime / count)}`)
+  c(`⏱️ Swapping simple: ${swappingSimpleTime} `)
+  c(`⏱️ Bounding complex: ${boundingComplexTime} `)
+  c(`Time per layer: ${Math.round(boundingComplexTime / layerCount)} `)
+  c(`⏱️ Swapping complex: ${swappingComplexTime} `)
+  c(`Time per layer: ${Math.round(swappingComplexTime / layerCount)} `)
+  c(`⏱️ Finding: ${findingTime} `)
+  c(`Time per variable: ${Math.round(findingTime / count)} `)
   swappingSimpleTime = 0
   swappingComplexTime = 0
   boundingComplexTime = 0
