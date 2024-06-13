@@ -31,7 +31,7 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   If you modified external libraries, reload file to apply changes.
 -   Plugin can't swap styles. API for styles is very poor. Use [Swap Libraries](https://help.figma.com/hc/en-us/articles/4404856784663-Swap-style-and-component-libraries) instead.
 -   Plugin can't swap variable in text with mixed fills. Do it manually instead.
--   Plugin can't swap and gradients and strokes in section. That’s not supported by Figma API yet. Do it manually instead.
+-   Plugin can't swap gradients and strokes in section. That’s not supported by Figma API yet. Do it manually instead.
 -   It may take some time to parse and swap variables when there're to many nodes or variables. Take a break and make some tea.
 -   Scoped variables was not tested.
 
