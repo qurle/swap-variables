@@ -81,6 +81,8 @@ figma.ui.onmessage = async (msg) => {
         collections.to = await cloneVariables(collections.from)
         c(`Cloned variables`)
       }
+
+      figma.ui.resize(uiSize.width, uiSize.height)
       const message = await startSwap(collections, currentScope)
 
       finish(newCollection ? collections.to : null, message)
@@ -171,6 +173,9 @@ async function getCollections() {
  * @param {Scope} scope — selection, current page or all pages
  */
 async function startSwap(collections: Collections, scope: Scope) {
+  if (collections.from.key === collections.to.key) {
+    return
+  }
   switch (scope) {
     case 'allPages':
       await swapAll(collections)

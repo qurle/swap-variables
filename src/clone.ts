@@ -5,6 +5,8 @@ import { c, error } from './code'
 const v = figma.variables
 const tl = figma.teamLibrary
 
+// Const
+const platforms: CodeSyntaxPlatform[] = ['WEB', 'ANDROID', 'iOS']
 
 export async function cloneVariables(from): Promise<Collection> {
 
@@ -91,7 +93,7 @@ function createModeMap(fromCollection: VariableCollection, toCollection: Variabl
     return modeMap
 }
 
-function mergeWithCollection(fromVariables, toVariables, toCollection, modeMap) {
+function mergeWithCollection(fromVariables: Variable[], toVariables, toCollection, modeMap) {
     for (const fromVariable of fromVariables) {
         let toVariable: Variable
         // If variable with this name exists
@@ -102,6 +104,10 @@ function mergeWithCollection(fromVariables, toVariables, toCollection, modeMap) 
                 toCollection,
                 fromVariable.resolvedType
             )
+
+            copyCodeSyntax(fromVariable, toVariable)
+            copyScopes(fromVariable, toVariable)
+
             toVariables.push(toVariable)
         }
 
@@ -112,4 +118,15 @@ function mergeWithCollection(fromVariables, toVariables, toCollection, modeMap) 
             }
         )
     }
+}
+
+function copyCodeSyntax(fromVariable: Variable, toVariable: Variable) {
+    for (const platform of platforms) {
+        if (fromVariable.codeSyntax[platform])
+            toVariable.setVariableCodeSyntax(platform, fromVariable.codeSyntax[platform])
+    }
+}
+
+function copyScopes(fromVariable: Variable, toVariable: Variable) {
+    toVariable.scopes = fromVariable.scopes
 }
