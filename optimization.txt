@@ -1,0 +1,186 @@
+figma.ui.onmessage = async (msg) => {
+	switch (msg.type) {
+		case 'swap':
+			if (newCollection) {
+				await cloneVariables(collections.from)
+			}
+			await startSwap(collections, currentScope)
+		case 'goToNode': {
+			if (currentScope === 'styles') {
+				(await figma.getStyleByIdAsync(msg.message.nodeId)).name
+			}
+			const node = await figma.getNodeByIdAsync(msg.message.nodeId)
+		}
+	}
+}
+
+const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0)
+const allExternalCollections = await tl.getAvailableLibraryVariableCollectionsAsync()
+
+for (const collection of allExternalCollections) {
+	const variables = await tl.getVariablesInLibraryCollectionAsync(collection.key)
+	if (variables.length > 0) {
+		const firstVariable = await v.importVariableByKeyAsync(variables[0].key)
+		collection['id'] = firstVariable.variableCollectionId
+		collection['modes'] = (await v.getVariableCollectionByIdAsync(collection['id'])).modes
+	}
+}
+
+let currentCollectionKey = nodes[0].getPluginData('currentCollectionKey')
+currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
+send(collections)
+
+
+async function startSwap(collections: Collections, scope: Scope) {
+	if (collections.from.key === collections.to.key) {
+		return
+	}
+	switch (scope) {
+		case 'allPages':
+			await swapAll(collections)
+		case 'thisPage':
+			await swapPage(collections, figma.currentPage)
+		case 'selection':
+			await swapNodes(collections, selection)
+		case 'styles':
+			await swapStyles(collections)
+			break
+	}
+}
+
+async function swapAll(collections: Collections) {
+	for (page of pages)
+		await swapPage(collections, page)
+}
+
+async function swapPage(collections: Collections, page: PageNode) {
+	if (page !== figma.currentPage)
+		await page.loadAsync()
+	await swapNodes(collections, page.children)
+}
+
+async function swapNodes(collections: Collections, nodes) {
+	for (const node of nodes) {
+		swapMode(node, collections)
+
+		if (text) {
+			await swapTextNode(node, collections)
+		} else {
+			for (property of boundVariables) {
+				if (componentProperties) {
+					await swapComponentProperty(node, value, collections)
+				}
+				else if (Array.isArray(value)) {
+					await swapComplexProperty(node, property, collections)
+				}
+				else {
+					await swapSimpleProperty(node, value, property, collections)
+				}
+			}
+		}
+		if (children) {
+			await swapNodes(collections, node.children)
+		}
+	}
+}
+
+async function swapMode(node, collections) {
+	node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
+}
+
+async function swapTextNode(node: TextNode, collections) {
+	node.getRangeAllFontNames(0, node.characters.length).map(figma.loadFontAsync) //! Check if loaded (use loadedFonts[])
+
+	for (property of nonMixedProperties) {
+		if (complex)
+			await swapComplexProperty(node, property, collections)
+		else
+			await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
+	}
+
+	for (const segment of textSegments) {
+		for (property of boundVariables) {
+			await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
+		}
+	}
+}
+
+async function swapStyles(collections) {
+	for (styleType of types) {
+		const styles = await getStyles()
+		for (const style of styles) {
+			if (variables) {
+				style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], collections, reference.bindFunction, null, style)
+			}
+		}
+	}
+
+	const textStyles = await figma.getLocalTextStylesAsync()
+	for (const style of textStyles) {
+		await figma.loadFontAsync(style.fontName) //! Check if loaded
+		for (field of fieldWithVariables) {
+			const newVariable = await getNewVariable(variable, collections, null, style)
+			if (field === 'fontFamily') {
+				for (const family of Object.values(newVariable.valuesByMode)) {
+					await loadFontsbyFamily(family)
+				}
+			}
+			style.setBoundVariable(field, await getNewVariable(variable, collections, null, style)) //! Replace with const newVariable
+		}
+	}
+}
+
+async function swapSimpleProperty(node, value, property, collections, range = []) {
+	const newVariable = await getNewVariable(value as Variable, collections, node)
+	node.setBoundVariable(property, newVariable)
+}
+
+async function swapComplexProperty(node, property: string, collections: Collections) {
+	node[property] = await swapPropertyLayers(node[property], collections, bindFunction, node)
+}
+
+async function swapPropertyLayers(layers, collections, bindFunction, node, style?) {
+	return await Promise.all(
+		layers.map(async (layer) => {
+			for (field of fieldsWithVariables) {
+				const newVariable = await getNewVariable(variable, collections, node, style)
+				if (newVariable)
+					layer = bindFunction(layer, field, newVariable)
+			}
+		}))
+}
+
+async function swapComponentProperty(node, value, collections: Collections) {
+	if (!Object.keys(node.componentProperties).includes(propertyName)) { //?
+		c(`Not in destination`)
+	}
+	const newVariable = await getNewVariable(variable, collections, node)
+	node.setProperties({ [propertyName]: v.createVariableAlias(newVariable) })
+}
+
+async function getNewVariable(variable, collections: Collections, node, style?) {
+	const variableObject = await v.getVariableByIdAsync(variable.id) //? Do we always need that?
+	if (fromSource) {
+		c(`Variable doesn't belong to source collection`)
+	}
+
+	newVariable = await findVariable(collections.to, variableObject)
+
+	return newVariable || variableObject //! Replace variableObject -> null and remove redundant assignment
+}
+
+async function findVariable(collection, variable) {
+	const newVariable = collection.local === true ?
+		//!!! Getting all variables for every property
+		//! Store all source and destination variables right from the start?
+		(await v.getLocalVariablesAsync()).find(el => el.variableCollectionId === collection.id && el.name === variable.name) :
+		await v.importVariableByKeyAsync((await tl.getVariablesInLibraryCollectionAsync(collection.key)).find(el => el.name === name).key)
+}
+
+async function loadFontsbyFamily(fontFamily) {
+	//! Store figma.listAvailableFontsAsync() globally!
+	const fonts = (await figma.listAvailableFontsAsync()).filter(font => font.fontName.family === fontFamily)
+	for (const font of fonts)
+		await figma.loadFontAsync(font.fontName)
+	loadedFonts.push(fontFamily)
+}

@@ -695,7 +695,8 @@
                             pluginMessage: {
                                 type: 'goToNode', message: {
                                     nodeId: error.nodeId,
-                                    nodeName: error.nodeName
+                                    nodeName: error.nodeName,
+                                    //shiftPressed: event.shiftKey
                                 }
                             }
                         }, '*')
@@ -743,6 +744,9 @@
                     const listItem = document.createElement('li')
                     listItem.tabIndex = '0'
                     listItem.addEventListener('click', selectNode)
+                    // Add shift + click for selecting multiple?
+                    // Figma logic: remove from selection if in selection
+                    // Add to selection of not
                     listItem.addEventListener('keydown', (event) => {
                         if (event.key === 'Enter' || event.key === 'Space') {
                             // console.log(`Selected ${error.nodeId}`)

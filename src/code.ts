@@ -2,9 +2,9 @@
 const LOGS = false
 const TIMERS = false
 
-import { Scope, Collection, Collections, Errors } from './types'
-import { figmaRGBToHex } from './utils'
 import { cloneVariables } from './clone'
+import { Collections, Errors, Scope } from './types'
+import { figmaRGBToHex } from './utils'
 
 // Constants
 const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
@@ -335,6 +335,7 @@ async function swapTextNode(node: TextNode, collections) {
     if (property === 'textRangeFills' || property === 'textRangeStrokes') continue
     c(`Swapping ${property} of ${node.name}`)
     if (node[property].toString() === `Symbol(figma.mixed)`) {
+      // Maybe we can swap at least fills?
       error('mixed', { nodeName: node.name, nodeId: node.id })
       continue
     }
@@ -405,7 +406,7 @@ async function swapStyles(collections) {
         continue
       if (field === 'fontFamily') {
         for (const family of Object.values(newVariable.valuesByMode)) {
-          await loadFonts(family)
+          await loadFontsByFamily(family)
         }
       }
       //@ts-ignore
@@ -618,7 +619,7 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
   c(`Can't swap ${type === 'noMatch' ? `variable ${options.name} for ` : `${options.property} of ${options.nodeName}`}: ${type}`, 'error')
 }
 
-async function loadFonts(fontFamily) {
+async function loadFontsByFamily(fontFamily) {
   if (loadedFonts.includes(fontFamily))
     return
 

@@ -5,6 +5,7 @@ node_modules
 
 out/
 dist/
+src/local/
 code.js
 
 .DS_Store
