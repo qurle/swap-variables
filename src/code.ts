@@ -341,7 +341,7 @@ async function swapTextNode(node: TextNode, collections) {
     if (complexProperties.includes(property))
       await swapComplexProperty(node, property, collections)
     else
-      await swapSimpleProperty(node, node.boundVariables[property][0], property, collections)
+      await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
   }
 
   // Props that can be mixed
@@ -432,6 +432,7 @@ async function swapSimpleProperty(node, value, property, collections, range = []
   const newVariable = await getNewVariable(value as Variable, collections, node)
   if (newVariable) {
     if (property === 'characters' && newVariable.resolvedType === 'FLOAT') {
+      c(`Swapping characters to float variable`)
       error("unsupported", { property: property, nodeName: node.name, type: node.type, nodeId: node.id })
       return 'unsupported'
     }
