@@ -1,5 +1,5 @@
-import { Collection, Collections } from './types'
 import { c, error } from './code'
+import { Collection } from './types'
 
 // Shorthands
 const v = figma.variables
@@ -8,7 +8,7 @@ const tl = figma.teamLibrary
 // Const
 const platforms: CodeSyntaxPlatform[] = ['WEB', 'ANDROID', 'iOS']
 
-export async function cloneVariables(from): Promise<Collection> {
+export async function cloneVariables(from: Collection): Promise<{ collection: Collection, variables: Variable[] }> {
 
     let fromVariables: Variable[]
     let fromCollection: VariableCollection
@@ -29,7 +29,7 @@ export async function cloneVariables(from): Promise<Collection> {
 
     const modeMap = createModeMap(fromCollection, toCollection)
 
-    mergeWithCollection(fromVariables, toVariables, toCollection, modeMap)
+    toVariables = mergeWithCollection(fromVariables, toVariables, toCollection, modeMap)
 
     if (['Mode 1', 'Value'].includes(toCollection.modes[0].name)) {
         if (!fromCollection.modes.find(mode => mode.name === toCollection.modes[0].name))
@@ -37,12 +37,15 @@ export async function cloneVariables(from): Promise<Collection> {
     }
 
     return {
+        collection: {
         lib: "Local Collections",
         name: toCollection.name,
         key: toCollection.key,
         id: toCollection.id,
         local: true
-    } as Collection
+        } as Collection,
+        variables: toVariables
+    }
 }
 
 async function createCollection(from: Collection) {
@@ -118,6 +121,7 @@ function mergeWithCollection(fromVariables: Variable[], toVariables, toCollectio
             }
         )
     }
+    return toVariables
 }
 
 function copyCodeSyntax(fromVariable: Variable, toVariable: Variable) {

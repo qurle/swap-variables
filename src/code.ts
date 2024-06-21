@@ -28,6 +28,7 @@ let working: boolean
 let count: number
 let times = new Map()
 let collections
+let toVariables: Variable[] | LibraryVariable[] = []
 let errors: Errors = {
   limitation: [],
   noMatch: [],
@@ -37,7 +38,9 @@ let errors: Errors = {
 }
 let gotErrors = false
 let currentScope: Scope
-let loadedFonts = []
+let availableFonts: Font[] = []
+let loadedFonts: FontName[] = []
+let loadedFontFamilies: string[] = []
 
 // Shorthands
 const v = figma.variables
@@ -78,7 +81,9 @@ figma.ui.onmessage = async (msg) => {
       await figma.clientStorage.setAsync('scope', currentScope)
 
       if (newCollection) {
-        collections.to = await cloneVariables(collections.from)
+        const { collection, variables } = (await cloneVariables(collections.from))
+        collections.to = collection
+        toVariables = variables
         c(`Cloned variables`)
       }
 
@@ -111,6 +116,7 @@ async function run(node: SceneNode | PageNode) {
   const scope = await figma.clientStorage.getAsync('scope')
   figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
 
+  availableFonts = await figma.listAvailableFontsAsync()
   collections = await getCollections()
 
   time('Getting current collection')
@@ -176,6 +182,10 @@ async function startSwap(collections: Collections, scope: Scope) {
   if (collections.from.key === collections.to.key) {
     return
   }
+  toVariables = collections.to.local === true ?
+    (await v.getLocalVariablesAsync()).filter(el => el.variableCollectionId === collections.to.id) :
+    (await tl.getVariablesInLibraryCollectionAsync(collections.to.key))
+
   switch (scope) {
     case 'allPages':
       await swapAll(collections)
@@ -327,7 +337,9 @@ async function swapTextNode(node: TextNode, collections) {
       error('badProp', { property: 'fontName', nodeName: node.name, nodeId: node.id })
       return 'badProp'
     }
-    node.getRangeAllFontNames(0, node.characters.length).map(figma.loadFontAsync)
+    await Promise.all(
+      node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, loadedFonts))
+    )
   }
 
   // Props that can't be mixed are stored in nonMixedProperties array
@@ -396,7 +408,7 @@ async function swapStyles(collections) {
   for (const style of textStyles) {
     c(`Bound variables ↴`)
     c(style.boundVariables)
-    await figma.loadFontAsync(style.fontName)
+    await loadFont(style.fontName, loadedFonts)
     for (const [field, variable] of Object.entries(style.boundVariables)) {
       c(`Setting field ${field}`)
       c(`Current variable ↴`)
@@ -406,11 +418,11 @@ async function swapStyles(collections) {
         continue
       if (field === 'fontFamily') {
         for (const family of Object.values(newVariable.valuesByMode)) {
-          await loadFontsByFamily(family)
+          await loadFontsByFamily(family as string, loadedFontFamilies, availableFonts)
         }
       }
       //@ts-ignore
-      style.setBoundVariable(field, await getNewVariable(variable, collections, null, style))
+      style.setBoundVariable(field, newVariable)
     }
   }
 }
@@ -514,7 +526,8 @@ async function swapPropertyLayers(layers, collections, bindFunction, node, style
         }
       }
       return layer
-    }))
+    })
+  )
 }
 
 /**
@@ -581,8 +594,9 @@ async function findVariable(collection, variable) {
   c(`Destination is local: ${collection.local}`)
 
   const newVariable = collection.local === true ?
-    (await v.getLocalVariablesAsync()).find(el => el.variableCollectionId === collection.id && el.name === variable.name) :
-    await v.importVariableByKeyAsync((await tl.getVariablesInLibraryCollectionAsync(collection.key)).find(el => el.name === name).key)
+    toVariables.find(el => el.name === name) as Variable :
+    await v.importVariableByKeyAsync(toVariables.find(el => el.name === name).key) as Variable
+
   c(`Found new ${newVariable.name} with id ${newVariable.id} ↴`)
   c(newVariable)
   findingTime += timeEnd('Finding', false)
@@ -619,14 +633,23 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
   c(`Can't swap ${type === 'noMatch' ? `variable ${options.name} for ` : `${options.property} of ${options.nodeName}`}: ${type}`, 'error')
 }
 
-async function loadFontsByFamily(fontFamily) {
-  if (loadedFonts.includes(fontFamily))
+async function loadFont(font: FontName, loadedFonts: FontName[]) {
+  if (loadedFonts.includes(font))
     return
 
-  const fonts = (await figma.listAvailableFontsAsync()).filter(font => font.fontName.family === fontFamily)
-  for (const font of fonts)
+  await figma.loadFontAsync(font)
+  loadedFonts.push(font)
+}
+
+async function loadFontsByFamily(fontFamily: string, loadedFontFamilies: string[], availableFonts: Font[]) {
+  if (loadedFontFamilies.includes(fontFamily))
+    return
+
+  const fonts = availableFonts.filter(font => font.fontName.family === fontFamily)
+  for (const font of fonts) {
     await figma.loadFontAsync(font.fontName)
-  loadedFonts.push(fontFamily)
+  }
+  loadedFontFamilies.push(fontFamily)
 }
 
 // Ending the work
