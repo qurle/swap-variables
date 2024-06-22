@@ -23,6 +23,12 @@ export interface Errors {
         maxModes: number
         currentModes: number
     }[],
+    noVariable: {
+        property?: string,
+        nodeName: string,
+        nodeId: string,
+        variableId: string
+    }[],
     noMatch: {
         name?: string,
         value?: string | VariableValue,
@@ -45,5 +51,5 @@ export interface Errors {
         type?: string,
         nodeName: string,
         nodeId: string
-    }[]
+    }[],
 }

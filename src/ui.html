@@ -311,6 +311,7 @@
         flex-direction: column;
         gap: var(--gap-m);
         margin-top: var(--gap-s);
+        user-select: none;
     }
 
     .errors h2 {
@@ -464,6 +465,9 @@
             <ul class="limitation">
                 <h3>Figma limitations</h3>
             </ul>
+            <ul class="no-variable">
+                <h3>Variable deleted</h3>
+            </ul>
             <ul class="no-match">
                 <h3>No matches</h3>
             </ul>
@@ -493,6 +497,7 @@
 
     const lists = {
         limitation: errorsEl.querySelector('ul.limitation'),
+        noVariable: errorsEl.querySelector('ul.no-variable'),
         noMatch: errorsEl.querySelector('ul.no-match'),
         mixed: errorsEl.querySelector('ul.mixed'),
         badProp: errorsEl.querySelector('ul.bad-prop'),
@@ -679,6 +684,7 @@
         if (errorCount === 0) return
 
         const limitationSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16" ><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M6 11.33a3.35 3.35 0 0 1 4 0" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M10 8c.37 0 .67-.45.67-1s-.3-1-.67-1c-.37 0-.67.45-.67 1s.3 1 .67 1ZM6 8c.37 0 .67-.45.67-1S6.37 6 6 6c-.37 0-.67.45-.67 1s.3 1 .67 1Z"/></svg>`
+        const noVariableSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill="currentColor" d="M10.67 7c0 .55-.3 1-.67 1-.37 0-.67-.45-.67-1s.3-1 .67-1c.37 0 .67.45.67 1ZM6 8c.37 0 .67-.45.67-1S6.37 6 6 6c-.37 0-.67.45-.67 1s.3 1 .67 1Z"/><path stroke="currentColor" d="M14.67 13.15V8.2c0-3.8-2.99-6.87-6.67-6.87A6.77 6.77 0 0 0 1.33 8.2v4.95c0 .88.9 1.45 1.67 1.06a1.88 1.88 0 0 1 1.93.12 1.88 1.88 0 0 0 2.14 0l.23-.16a1.22 1.22 0 0 1 1.4 0l.23.16a1.88 1.88 0 0 0 2.14 0 1.88 1.88 0 0 1 1.93-.12c.77.4 1.67-.18 1.67-1.06Z" opacity=".5"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>`
         const mixedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16" > <g opacity=".9"><path fill="currentColor" d="M2.34 13.66A8 8 0 0 1 13.66 2.34L2.34 13.66Z" /><path stroke="currentColor" stroke-width="2" d="M3.05 12.95a7 7 0 1 1 9.9-9.9 7 7 0 0 1-9.9 9.9Z" opacity=".5" vector-effect="non-scaling-stroke" /></g></svg>`
         const badPropSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16" ><path stroke="currentColor" d="M8 14.67A6.67 6.67 0 1 0 8 1.33a6.67 6.67 0 0 0 0 13.34Z" opacity=".5" vector-effect="non-scaling-stroke"/><path stroke="currentColor" stroke-linecap="round" d="M8 4v5" vector-effect="non-scaling-stroke"/><path fill="currentcolor" d="M8 12.33A.67.67 0 1 0 8 11a.67.67 0 0 0 0 1.33Z"/></svg>`
         const unsupportedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" ><path d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="currentColor"/><path opacity="0.5" d="M9.17667 1.43467C8.932 1.33333 8.62134 1.33333 8 1.33333C7.37867 1.33333 7.068 1.33333 6.82334 1.43467C6.66146 1.50168 6.51437 1.59993 6.39049 1.72382C6.2666 1.8477 6.16835 1.99479 6.10134 2.15667C6.04 2.30533 6.01534 2.47933 6.006 2.732C6.00185 2.91466 5.95134 3.09327 5.85921 3.25105C5.76708 3.40883 5.63637 3.5406 5.47934 3.634C5.31993 3.72336 5.14043 3.77073 4.95769 3.77167C4.77495 3.7726 4.59498 3.72706 4.43467 3.63933C4.21067 3.52067 4.04867 3.45533 3.888 3.434C3.53755 3.38791 3.18314 3.48287 2.90267 3.698C2.69334 3.86 2.53734 4.12867 2.22667 4.66667C1.916 5.20467 1.76 5.47333 1.726 5.73667C1.70309 5.9103 1.71462 6.08675 1.75991 6.25593C1.80521 6.42511 1.8834 6.58371 1.99 6.72267C2.08867 6.85067 2.22667 6.958 2.44067 7.09267C2.756 7.29067 2.95867 7.628 2.95867 8C2.95867 8.372 2.756 8.70933 2.44067 8.90667C2.22667 9.042 2.088 9.14933 1.99 9.27733C1.8834 9.41629 1.80521 9.57489 1.75991 9.74407C1.71462 9.91325 1.70309 10.0897 1.726 10.2633C1.76067 10.526 1.916 10.7953 2.226 11.3333C2.53734 11.8713 2.69267 12.14 2.90267 12.302C3.04163 12.4086 3.20023 12.4868 3.36941 12.5321C3.53859 12.5774 3.71503 12.5889 3.88867 12.566C4.04867 12.5447 4.21067 12.4793 4.43467 12.3607C4.59498 12.2729 4.77495 12.2274 4.95769 12.2283C5.14043 12.2293 5.31993 12.2766 5.47934 12.366C5.80134 12.5527 5.99267 12.896 6.006 13.268C6.01534 13.5213 6.03934 13.6947 6.10134 13.8433C6.16835 14.0052 6.2666 14.1523 6.39049 14.2762C6.51437 14.4001 6.66146 14.4983 6.82334 14.5653C7.068 14.6667 7.37867 14.6667 8 14.6667C8.62134 14.6667 8.932 14.6667 9.17667 14.5653C9.33855 14.4983 9.48563 14.4001 9.60952 14.2762C9.73341 14.1523 9.83166 14.0052 9.89867 13.8433C9.96 13.6947 9.98467 13.5213 9.994 13.268C10.0073 12.896 10.1987 12.552 10.5207 12.366C10.6801 12.2766 10.8596 12.2293 11.0423 12.2283C11.2251 12.2274 11.405 12.2729 11.5653 12.3607C11.7893 12.4793 11.9513 12.5447 12.1113 12.566C12.285 12.5889 12.4614 12.5774 12.6306 12.5321C12.7998 12.4868 12.9584 12.4086 13.0973 12.302C13.3073 12.1407 13.4627 11.8713 13.7733 11.3333C14.084 10.7953 14.24 10.5267 14.274 10.2633C14.2969 10.0897 14.2854 9.91325 14.2401 9.74407C14.1948 9.57489 14.1166 9.41629 14.01 9.27733C13.9113 9.14933 13.7733 9.042 13.5593 8.90733C13.4032 8.81241 13.2737 8.67933 13.1831 8.52062C13.0925 8.3619 13.0437 8.18275 13.0413 8C13.0413 7.628 13.244 7.29067 13.5593 7.09333C13.7733 6.958 13.912 6.85067 14.01 6.72267C14.1166 6.58371 14.1948 6.42511 14.2401 6.25593C14.2854 6.08675 14.2969 5.9103 14.274 5.73667C14.2393 5.474 14.084 5.20467 13.774 4.66667C13.4627 4.12867 13.3073 3.86 13.0973 3.698C12.9584 3.59139 12.7998 3.51321 12.6306 3.46791C12.4614 3.42261 12.285 3.41109 12.1113 3.434C11.9513 3.45533 11.7893 3.52067 11.5647 3.63933C11.4044 3.72694 11.2246 3.77242 11.042 3.77148C10.8594 3.77055 10.68 3.72324 10.5207 3.634C10.3636 3.5406 10.2329 3.40883 10.1408 3.25105C10.0487 3.09327 9.99816 2.91466 9.994 2.732C9.98467 2.47867 9.96067 2.30533 9.89867 2.15667C9.83166 1.99479 9.73341 1.8477 9.60952 1.72382C9.48563 1.59993 9.33855 1.50168 9.17667 1.43467Z" stroke="currentColor"/></svg>`
@@ -696,7 +702,7 @@
                                 type: 'goToNode', message: {
                                     nodeId: error.nodeId,
                                     nodeName: error.nodeName,
-                                    //shiftPressed: event.shiftKey
+                                    shiftPressed: event.shiftKey
                                 }
                             }
                         }, '*')
@@ -708,6 +714,10 @@
                         case 'limitation':
                             errorText = `Only ${error.maxModes} modes available of ${error.currentModes}`
                             icon.innerHTML = limitationSVG
+                            break
+                        case 'noVariable':
+                            errorText = `Variable not found for ${error.property} of ${error.nodeName}`
+                            icon.innerHTML = noVariableSVG
                             break
                         case 'noMatch':
                             errorText = error.name + ' not found'
@@ -741,6 +751,7 @@
                     }
                     const text = document.createElement('p')
                     text.textContent = errorText
+                    text.title = errorText
                     const listItem = document.createElement('li')
                     listItem.tabIndex = '0'
                     listItem.addEventListener('click', selectNode)

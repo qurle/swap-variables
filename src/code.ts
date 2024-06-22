@@ -18,7 +18,7 @@ const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'st
 const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
-const uiSize = { width: 300, height: 336 }
+const uiSize = { width: 300, height: 340 }
 // Idk why I made this
 const OK = -1
 
@@ -34,7 +34,8 @@ let errors: Errors = {
   noMatch: [],
   mixed: [],
   badProp: [],
-  unsupported: []
+  unsupported: [],
+  noVariable: []
 }
 let gotErrors = false
 let currentScope: Scope
@@ -58,10 +59,11 @@ figma.ui.onmessage = async (msg) => {
 
       errors = {
         limitation: [],
+        noVariable: [],
         noMatch: [],
         mixed: [],
         badProp: [],
-        unsupported: []
+        unsupported: [],
       }
 
       count = 0
@@ -88,8 +90,8 @@ figma.ui.onmessage = async (msg) => {
       }
 
       figma.ui.resize(uiSize.width, uiSize.height)
-      const message = await startSwap(collections, currentScope)
 
+      const message = await startSwap(collections, currentScope)
       finish(newCollection ? collections.to : null, message)
       break
 
@@ -100,9 +102,14 @@ figma.ui.onmessage = async (msg) => {
         break
       }
 
-      const node = await figma.getNodeByIdAsync(msg.message.nodeId)
-      figma.viewport.scrollAndZoomIntoView([node])
-      figma.currentPage.selection = [node as SceneNode]
+      const node = await figma.getNodeByIdAsync(msg.message.nodeId) as SceneNode
+
+      if (msg.message.shiftPressed) {
+        figma.currentPage.selection = [...figma.currentPage.selection, node]
+      } else {
+        figma.currentPage.selection = [node as SceneNode]
+      }
+      figma.viewport.scrollAndZoomIntoView(figma.currentPage.selection)
       notify(`Going to ${node.name}`)
       break
     }
@@ -358,9 +365,17 @@ async function swapTextNode(node: TextNode, collections) {
   }
 
   // Props that can be mixed
+  c(`Segments  ↴`)
+  c(node.getStyledTextSegments(['boundVariables']))
+
   for (const segment of node.getStyledTextSegments(['boundVariables'])) {
+    c(`Current segment ↴`)
+    c(segment)
     for (const [property, value] of Object.entries(segment.boundVariables)) {
-      if (complexProperties.includes(property)) { }
+      c(`Swapping ranged property ${property} of ${node.name}`)
+      c(`Value ↴`)
+      c(value)
+      // if (complexProperties.includes(property)) { }
       await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
     }
   }
@@ -413,7 +428,7 @@ async function swapStyles(collections) {
       c(`Setting field ${field}`)
       c(`Current variable ↴`)
       c(variable)
-      const newVariable = await getNewVariable(variable, collections, null, style)
+      const newVariable = await getNewVariable(variable, collections, null, style, field)
       if (!newVariable)
         continue
       if (field === 'fontFamily') {
@@ -441,8 +456,8 @@ async function swapSimpleProperty(node, value, property, collections, range = []
   time('Swapping simple')
   c(`Swapping simple property: ${property}`)
   c(`Current value:`)
-  c(node[property])
-  const newVariable = await getNewVariable(value as Variable, collections, node)
+  c(value || node[property])
+  const newVariable = await getNewVariable(value as Variable, collections, node, null, property)
   if (newVariable) {
     if (property === 'characters' && newVariable.resolvedType === 'FLOAT') {
       c(`Swapping characters to float variable`)
@@ -453,8 +468,8 @@ async function swapSimpleProperty(node, value, property, collections, range = []
     if (range.length > 0) {
       c(`Setting ranged variable from ${node.characters[range[0]]}:${range[0]} to ${node.characters[range[1] - 1]}:${range[1] - 1}`)
       node.setRangeBoundVariable(range[0], range[1], property, newVariable)
-    }
-    node.setBoundVariable(property, newVariable)
+    } else
+      node.setBoundVariable(property, newVariable)
   }
   swappingSimpleTime = timeEnd('Swapping simple', false)
   return OK
@@ -517,7 +532,7 @@ async function swapPropertyLayers(layers, collections, bindFunction, node, style
 
       c(`Found ${Object.entries(layer.boundVariables).length} variables`)
       for (const [field, variable] of Object.entries(layer.boundVariables)) {
-        const newVariable = await getNewVariable(variable, collections, node, style)
+        const newVariable = await getNewVariable(variable, collections, node, style, field)
         if (newVariable) {
           c('found new variable')
           time('Bounding complex')
@@ -548,7 +563,7 @@ async function swapComponentProperty(node, value, collections: Collections) {
       continue
     }
 
-    const newVariable = await getNewVariable(variable, collections, node)
+    const newVariable = await getNewVariable(variable, collections, node, null, propertyName)
 
     if (!newVariable) {
       c(`No new variable`)
@@ -559,10 +574,18 @@ async function swapComponentProperty(node, value, collections: Collections) {
 }
 
 
-async function getNewVariable(variable, collections: Collections, node, style?) {
+async function getNewVariable(variable, collections: Collections, node, style?, property?) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
   c(variableObject)
+  try {
+    variableObject.variableCollectionId
+  }
+  catch (e) {
+    error('noVariable', { variableId: variable.id, nodeName: node?.name || style?.name || null, nodeId: node?.id || style?.id || null, property: property })
+    return
+  }
+
   if (!collections.from.id.includes(variableObject.variableCollectionId.match(rCollectionId)?.[1])) {
     c(`Variable doesn't belong to source collection`)
     return
@@ -603,7 +626,7 @@ async function findVariable(collection, variable) {
   return newVariable
 }
 
-export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported', options) {
+export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported' | 'noVariable', options) {
   gotErrors = true
   c(`Encountered error: ${type} ↴`)
   c(options)
@@ -626,6 +649,10 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
       break
     case 'unsupported':
       if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.property === options.property) >= 0)
+        return
+      break
+    case 'noVariable':
+      if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.variableId === options.variableId) >= 0)
         return
       break
   }
