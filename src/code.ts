@@ -1,5 +1,5 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = false
+const LOGS = true
 const TIMERS = false
 
 import { cloneVariables } from './clone'
@@ -353,12 +353,18 @@ async function swapTextNode(node: TextNode, collections) {
   for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
     if (property === 'textRangeFills' || property === 'textRangeStrokes') continue
     c(`Swapping ${property} of ${node.name}`)
-    if (node[property].toString() === `Symbol(figma.mixed)`) {
+    if (property === 'fills') {
+      for (const segment of node.getStyledTextSegments(['fills'])) {
+        node.setRangeFills(segment.start, segment.end, await swapPropertyLayers(segment.fills, collections, v.setBoundVariableForPaint, node))
+      }
+    }
+    else if (node[property].toString() === `Symbol(figma.mixed)`) {
       // Maybe we can swap at least fills?
+
       error('mixed', { nodeName: node.name, nodeId: node.id })
       continue
     }
-    if (complexProperties.includes(property))
+    else if (complexProperties.includes(property))
       await swapComplexProperty(node, property, collections)
     else
       await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
