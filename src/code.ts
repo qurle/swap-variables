@@ -537,18 +537,21 @@ async function swapPropertyLayers(layers, collections, bindFunction, node, style
       if ('gradientStops' in layer) {
         c('Got gradient ↴')
         c(layer.gradientStops)
-        if (layer.gradientStops.some(el => 'boundVariables' in el))
-          error("unsupported", { property: 'gradient', nodeName: node.name, type: node.type, nodeId: node.id })
-        return layer
-        // for (const [field, variable] of Object.entries(gradientStops.boundVariables || [])) {
-        //   const newVariable = await getNewVariable(variable, collections, node, style, field)
-        //   if (newVariable) {
-        //     c('found new variable')
-        //     time('Bounding complex')
-        //     layer = bindFunction(layer, field, newVariable)
-        //     boundingComplexTime += timeEnd('Bounding complex', false)
-        //   }
-        // }
+        const newLayer = JSON.parse(JSON.stringify(layer)) as GradientPaint
+        for (const gradientStop of newLayer.gradientStops) {
+          // Does this stop has some bound variables?
+          if (!('color' in gradientStop.boundVariables))
+            continue
+
+          const newVariable = await getNewVariable(gradientStop.boundVariables.color, collections, node, null, 'gradient')
+          gradientStop.boundVariables.color = v.createVariableAlias(newVariable)
+          c('New stop ↴')
+          c(gradientStop)
+        }
+        c('New layer ↴')
+        c(newLayer)
+
+        return newLayer || layer
       }
       if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
         return layer
