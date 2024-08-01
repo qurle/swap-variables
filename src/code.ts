@@ -11,7 +11,7 @@ const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced v
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
-const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing']
+const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'textRangeFills']
 const affectingInitFont = ['characters', 'fontSize', 'fontName', 'textStyleId', 'textCase', 'textDecoration', 'letterSpacing', 'leadingTrim', 'lineHeight']
 const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'strokeAlign', 'strokeStyleId']
 
@@ -221,7 +221,7 @@ async function swapAll(collections: Collections) {
   const pageCount = figma.root.children.length
   for (let i = 0; i < pageCount; i++) {
     const page = figma.root.children[i]
-    notify(`Swapping page ${i + 1} of ${pageCount}: ${page.name}`)
+    notify(`Swapping page ${i + 1} of ${pageCount}: ${page.name}`, { timeout: Infinity })
     await swapPage(collections, page)
   }
 }
@@ -331,6 +331,7 @@ async function swapMode(node, collections) {
  * @param {Collections} collections — object containing source and destination collections
  */
 async function swapTextNode(node: TextNode, collections) {
+  try {
   c(`Working with text`)
   if (!Object.keys(node.boundVariables)) {
     c(`No variables`)
@@ -348,19 +349,19 @@ async function swapTextNode(node: TextNode, collections) {
       node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, loadedFonts))
     )
   }
+    c(`Properties with variables ↴`)
+    c(Object.keys(node.boundVariables))
 
   // Props that can't be mixed are stored in nonMixedProperties array
-  for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
-    if (property === 'textRangeFills' || property === 'textRangeStrokes') continue
-    c(`Swapping ${property} of ${node.name}`)
-    if (property === 'fills') {
-      for (const segment of node.getStyledTextSegments(['fills'])) {
-        node.setRangeFills(segment.start, segment.end, await swapPropertyLayers(segment.fills, collections, v.setBoundVariableForPaint, node))
+    c(`Not mixed properties`)
+    for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
+      c(`Swapping ${property} of ${node.name}`)
+      if (property === 'textRangeStrokes') {
+        c(`Skipping ${property}`)
+        continue
       }
-    }
-    else if (node[property].toString() === `Symbol(figma.mixed)`) {
-      // Maybe we can swap at least fills?
-
+      if (node[property].toString() === `Symbol(figma.mixed)`) {
+      // Some other random props
       error('mixed', { nodeName: node.name, nodeId: node.id })
       continue
     }
@@ -371,12 +372,14 @@ async function swapTextNode(node: TextNode, collections) {
   }
 
   // Props that can be mixed
-  c(`Segments  ↴`)
-  c(node.getStyledTextSegments(['boundVariables']))
-
-  for (const segment of node.getStyledTextSegments(['boundVariables'])) {
+    // Also my formatting is broken
+    c(`Mixed segments  ↴`)
+    c(node.getStyledTextSegments(['boundVariables', 'fills']))
+    // Have no clue why fills aren't in bound variables. They surely should be
+    for (const segment of node.getStyledTextSegments(['boundVariables', 'fills'])) {
     c(`Current segment ↴`)
     c(segment)
+      // Fills are not here!
     for (const [property, value] of Object.entries(segment.boundVariables)) {
       c(`Swapping ranged property ${property} of ${node.name}`)
       c(`Value ↴`)
@@ -384,6 +387,36 @@ async function swapTextNode(node: TextNode, collections) {
       // if (complexProperties.includes(property)) { }
       await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
     }
+      // Fills are here!
+      if ('fills' in segment) {
+        c(`Swapping ranged fills`)
+        if (!segmentHasStyles(node, segment, 'textRangeFills')) {
+          c(`No styles here`)
+          c(segment.fills)
+          const newPropertyLayers = await swapPropertyLayers(segment.fills, 'fills', collections, v.setBoundVariableForPaint, node)
+          if (newPropertyLayers)
+            node.setRangeFills(segment.start, segment.end, newPropertyLayers)
+        }
+      }
+    }
+  }
+  catch (e) {
+    notify(`Can't swap text node ${node.name}: ${e}`, { error: true })
+  }
+}
+
+
+
+function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'textRangeFills' | 'fills' | 'textRangeStrokes' | 'strokes' | 'fontFamily' | 'fontWeight' | 'fontSize') {
+  // Yes I ✨architectured✨ one-case switch so what
+  switch (type) {
+    case 'textRangeFills':
+    case 'fills':
+      c(`Style from ${segment.start} to ${segment.end}: ${String(node.getRangeFillStyleId(segment.start, segment.end)) || 'Not found'}`)
+      c(`Returning ${node.getRangeFillStyleId(segment.start, segment.end) !== ''}`)
+      return node.getRangeFillStyleId(segment.start, segment.end) !== ''
+    default:
+      return false
   }
 }
 
@@ -419,7 +452,7 @@ async function swapStyles(collections) {
       c(`Got style ${style.name}`)
       if (style.boundVariables && Object.entries(style.boundVariables).length > 0) {
         c(`Swapping`)
-        style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], collections, reference.bindFunction, null, style)
+        style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], reference.layersName, collections, reference.bindFunction, null, style)
       }
     }
   }
@@ -522,11 +555,24 @@ async function swapComplexProperty(node, property: string, collections: Collecti
   }
 
   // Swapping by layers
-  node[property] = await swapPropertyLayers(node[property], collections, bindFunction, node)
+  const newPropertyLayers = await swapPropertyLayers(node[property], property, collections, bindFunction, node)
+  if (newPropertyLayers) node[property] = newPropertyLayers
   swappingComplexTime += timeEnd('Swapping complex', false)
 }
 
-async function swapPropertyLayers(layers, collections, bindFunction, node, style?) {
+async function swapPropertyLayers(layers, property, collections, bindFunction, node, style?) {
+  c(`Swapping layers of ${property}`)
+  // Unaffect styles (otherwise they'll be detached)
+  if (!style &&
+    (property === 'fills' && node.fillStyleId && node.fillStyleId.toString() !== `Symbol(figma.mixed)`) ||
+    (property === 'effects' && node.effectStyleId && node.effectStyleId.toString() !== `Symbol(figma.mixed)`) ||
+    (property === 'grids' && node.gridStyleId && node.gridStyleId.toString() !== `Symbol(figma.mixed)`) ||
+    (property === 'strokes' && node.effectStyleId && node.strokeStyleId.toString() !== `Symbol(figma.mixed)`)
+  ) {
+    c(`Got styles here`)
+    return null
+  }
+  else 
   return await Promise.all(
     layers.map(async (layer) => {
       layerCount++
@@ -544,7 +590,7 @@ async function swapPropertyLayers(layers, collections, bindFunction, node, style
             continue
 
           const newVariable = await getNewVariable(gradientStop.boundVariables.color, collections, node, null, 'gradient')
-          gradientStop.boundVariables.color = v.createVariableAlias(newVariable)
+          if (newVariable) gradientStop.boundVariables.color = v.createVariableAlias(newVariable)
           c('New stop ↴')
           c(gradientStop)
         }
@@ -733,10 +779,10 @@ function finish(newCollection = null, message?: string) {
 }
 
 // Show new notification
-function notify(text: string) {
+function notify(text: string, options: NotificationOptions = {}) {
   if (notification != null)
     notification.cancel()
-  notification = figma.notify(text)
+  notification = figma.notify(text, options)
 }
 
 // Showing interruption notification
