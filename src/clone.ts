@@ -1,5 +1,6 @@
-import { c, error } from './code'
+import { error } from './code'
 import { Collection } from './types'
+import { c } from './utils'
 
 // Shorthands
 const v = figma.variables

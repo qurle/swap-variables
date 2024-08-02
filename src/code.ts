@@ -1,10 +1,10 @@
 // Disclamer: I am not a programmer. Read at yor risk
-const LOGS = false
-const TIMERS = false
+export const LOGS = true
+export const TIMERS = false
 
 import { cloneVariables } from './clone'
 import { Collections, Errors, Scope } from './types'
-import { figmaRGBToHex } from './utils'
+import { c, countChildren, figmaRGBToHex, generateProgress } from './utils'
 
 // Constants
 const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
@@ -20,16 +20,17 @@ const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
 const uiSize = { width: 300, height: 340 }
+
 // Idk why I made this
 const OK = -1
 
 // Variables
 let notification: NotificationHandler
 let working: boolean
-let workingNotifications: number[] = []
-let count: number
-let nodesProcessed: number
-let nodesAmount: number
+let workingNotification: number
+let count: number = 0
+let nodesProcessed: number = 0
+let nodesAmount: number = 0
 let times = new Map()
 let collections
 let toVariables: Variable[] | LibraryVariable[] = []
@@ -71,6 +72,8 @@ figma.ui.onmessage = async (msg) => {
       }
       count = 0
 
+      if (notification != null)
+        notification.cancel()
 
       notification = figma.notify('Working...', { timeout: Infinity })
       const selection = figma.currentPage.selection
@@ -208,8 +211,9 @@ async function startSwap(collections: Collections, scope: Scope) {
       break
     case 'selection':
       const selection = figma.currentPage.selection
-      if (selection.length > 0)
-        await swapNodes(collections, selection)
+      if (selection.length > 0) {
+        await swapNodes(collections, selection, true)
+      }
       else
         return 'No layers selected'
       break
@@ -218,6 +222,31 @@ async function startSwap(collections: Collections, scope: Scope) {
       break
   }
   // stopWorkingNotification()
+}
+
+function initWorkingNotification(nodes) {
+  c(`Initing`)
+  c(nodes)
+  nodesProcessed = 0
+  nodesAmount = countChildren(nodes)
+  showWorkingNotification()
+}
+
+
+
+function showWorkingNotification() {
+  c(`Showing work notification`);
+  (function loop() {
+    const message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
+    notify(message)
+    workingNotification = setTimeout(loop, 300);
+  })();
+}
+
+function stopWorkingNotification() {
+  clearTimeout(workingNotification)
+  console.log(`Nodes processed: ${nodesProcessed} of ${nodesAmount}`)
+  nodesProcessed = 0
 }
 
 /**
@@ -241,7 +270,8 @@ async function swapAll(collections: Collections) {
 async function swapPage(collections: Collections, page: PageNode) {
   if (page !== figma.currentPage)
     await page.loadAsync()
-  await swapNodes(collections, page.children)
+
+  await swapNodes(collections, page.children, true)
 }
 
 /**
@@ -249,7 +279,11 @@ async function swapPage(collections: Collections, page: PageNode) {
  * @param {Collections} collections — object containing source and destination collections
  * @param {SceneNode[]} nodes – nodes to affect
  */
-async function swapNodes(collections: Collections, nodes) {
+async function swapNodes(collections: Collections, nodes, first = false) {
+  if (first) {
+    // Keeping it here for proper multipage work
+    initWorkingNotification(nodes)
+  }
   const nodeLength = nodes.length
   c(`Nodes to swap ↴`)
   c(nodes)
@@ -280,6 +314,8 @@ async function swapNodes(collections: Collections, nodes) {
         }
       }
     }
+
+    nodesProcessed++
 
     node.setRelaunchData({ relaunch: '' })
     node.setPluginData('currentCollectionKey', collections.to.key)
@@ -763,10 +799,15 @@ async function loadFontsByFamily(fontFamily: string, loadedFontFamilies: string[
 
 // Ending the work
 function finish(newCollection = null, message?: string) {
-  showTimers()
+  // showTimers()
+  // Killing work notification
+  stopWorkingNotification()
+
+  // Sending finish message
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
+  // Expanding to show some errors
   if (errorCount > 0)
     figma.ui.resize(uiSize.width, uiSize.height + 60)
   else
@@ -781,7 +822,7 @@ function finish(newCollection = null, message?: string) {
     notify(`${actionMsg} ${errorMsg}`)
   }
   else {
-    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]} ${count} variable${(count === 1 ? "." : "s.")}`
+    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}`
     const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
     notify(`${idleMsg} ${errorMsg}`)
   }
@@ -818,21 +859,6 @@ function showTimers() {
   boundingComplexTime = 0
   findingTime = 0
   layerCount = 0
-}
-
-export function c(str: any = 'here', type?: 'error' | 'warn') {
-  if (!LOGS)
-    return
-  switch (type) {
-    case 'error':
-      console.error(str)
-      break
-    case 'warn':
-      console.warn(str)
-      break
-    default:
-      console.log(str)
-  }
 }
 
 function time(str) {
