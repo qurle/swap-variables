@@ -4,7 +4,7 @@ const TIMERS = false
 
 import { cloneVariables } from './clone'
 import { Collections, Errors, Scope } from './types'
-import { delay, figmaRGBToHex } from './utils'
+import { figmaRGBToHex } from './utils'
 
 // Constants
 const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
@@ -72,7 +72,7 @@ figma.ui.onmessage = async (msg) => {
       count = 0
 
 
-      // notification = figma.notify('Working...', { timeout: Infinity })
+      notification = figma.notify('Working...', { timeout: Infinity })
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
