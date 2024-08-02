@@ -4,11 +4,12 @@ const TIMERS = false
 
 import { cloneVariables } from './clone'
 import { Collections, Errors, Scope } from './types'
-import { figmaRGBToHex } from './utils'
+import { delay, figmaRGBToHex } from './utils'
 
 // Constants
 const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
+const workingMsgs = ["Working", "Swapping hard", "Checking everything", "Thinking"]
 const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
 const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'textRangeFills']
@@ -25,7 +26,10 @@ const OK = -1
 // Variables
 let notification: NotificationHandler
 let working: boolean
+let workingNotifications: number[] = []
 let count: number
+let nodesProcessed: number
+let nodesAmount: number
 let times = new Map()
 let collections
 let toVariables: Variable[] | LibraryVariable[] = []
@@ -65,10 +69,10 @@ figma.ui.onmessage = async (msg) => {
         badProp: [],
         unsupported: [],
       }
-
       count = 0
 
-      notification = figma.notify('Working...', { timeout: Infinity })
+
+      // notification = figma.notify('Working...', { timeout: Infinity })
       const selection = figma.currentPage.selection
       const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
@@ -115,6 +119,7 @@ figma.ui.onmessage = async (msg) => {
     }
   }
 }
+
 
 // Engine start
 run(figma.currentPage)
@@ -186,6 +191,7 @@ async function getCollections() {
  * @param {Scope} scope — selection, current page or all pages
  */
 async function startSwap(collections: Collections, scope: Scope) {
+  // showWorkingNotification()
   if (collections.from.key === collections.to.key) {
     return
   }
@@ -211,6 +217,7 @@ async function startSwap(collections: Collections, scope: Scope) {
       await swapStyles(collections)
       break
   }
+  // stopWorkingNotification()
 }
 
 /**
@@ -243,10 +250,13 @@ async function swapPage(collections: Collections, page: PageNode) {
  * @param {SceneNode[]} nodes – nodes to affect
  */
 async function swapNodes(collections: Collections, nodes) {
+  const nodeLength = nodes.length
   c(`Nodes to swap ↴`)
   c(nodes)
   // try {
-  for (const node of nodes) {
+  for (let i = 0; i < nodeLength; i++) {
+    const node = nodes[i]
+  // notify(`Checking node ${i} of ${nodeLength}`)
     c(`Swapping node ${node.name}`)
     // Change explicit mode
     swapMode(node, collections)
@@ -301,15 +311,15 @@ async function swapMode(node, collections) {
   c(collections.from)
   c(`Current modes ↴`)
   c(collections.from.modes)
-  if (node.type === 'INSTANCE') {
-    error('unsupported', {
-      property: 'mode',
-      type: node.type,
-      nodeName: node.name,
-      nodeId: node.id
-    })
-    return
-  }
+  // if (node.type === 'INSTANCE') {
+  //   error('unsupported', {
+  //     property: 'mode',
+  //     type: node.type,
+  //     nodeName: node.name,
+  //     nodeId: node.id
+  //   })
+  //   return
+  // }
   const currentMode = collections.from.modes.find(mode => mode.modeId === explicitMode)
   if (!currentMode)
     return
@@ -321,8 +331,9 @@ async function swapMode(node, collections) {
     return
   }
   c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
-
+  try {
   node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
+  } catch { }
 }
 
 /**
@@ -576,7 +587,6 @@ async function swapPropertyLayers(layers, property, collections, bindFunction, n
   return await Promise.all(
     layers.map(async (layer) => {
       layerCount++
-      count++
       c(`Current layer ↴`)
       c(layer)
 
@@ -780,6 +790,7 @@ function finish(newCollection = null, message?: string) {
 
 // Show new notification
 function notify(text: string, options: NotificationOptions = {}) {
+  // stopWorkingNotification()
   if (notification != null)
     notification.cancel()
   notification = figma.notify(text, options)

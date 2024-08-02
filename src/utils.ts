@@ -33,3 +33,33 @@ export function figmaRGBToHex(color: RGB | RGBA): string {
 
 type webRGB = [number, number, number]
 type webRGBA = [number, number, number, number]
+
+export function delay(ms) {
+    return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+    });
+}
+
+function showWorkingNotification(msgArray, noficationArray, notificatonId) {
+    const workingWord = msgArray[Math.floor(Math.random() * msgArray.length)]
+    const ntfAmount = 6
+    const ntfLoopDuration = 1000
+    const ntfTimeout = ntfAmount / ntfLoopDuration
+    const ntfDelay = ntfTimeout / ntfAmount
+    noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕛  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout))
+    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕑  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
+    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕓  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
+    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕕  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
+    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕗  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
+    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕙  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
+}
+
+function stopWorkingNotification(noficationArray, notificatonId) {
+    noficationArray.forEach(interval => clearInterval(interval))
+    noficationArray = []
+    notificatonId.cancel()
+}
+
+function countAll() {
+    return figma.currentPage.findAll.length;
+}  
