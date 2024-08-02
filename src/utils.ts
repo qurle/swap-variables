@@ -25,7 +25,7 @@ export function countChildren(nodes) {
 }
 
 export function generateProgress(percent) {
-    c(`Generating simple progress`)
+    c(`Generating simple progress: ${percent}%`)
     const currentProgress = Math.floor(percent / progressBar.count)
     return progressBar.filled.repeat(currentProgress) + progressBar.empty.repeat(progressBar.count - currentProgress)
 }

@@ -53,3 +53,9 @@ export interface Errors {
         nodeId: string
     }[],
 }
+
+export interface ProgressOptions {
+    scope: Scope,
+    pageIndex?: number,
+    pageAmount?: number,
+}

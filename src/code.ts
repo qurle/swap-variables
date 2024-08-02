@@ -3,7 +3,7 @@ export const LOGS = false
 export const TIMERS = false
 
 import { cloneVariables } from './clone'
-import { Collections, Errors, Scope } from './types'
+import { Collections, Errors, ProgressOptions, Scope } from './types'
 import { c, countChildren, figmaRGBToHex, generateProgress } from './utils'
 
 // Constants
@@ -26,10 +26,12 @@ const OK = -1
 // Variables
 let notification: NotificationHandler
 let working: boolean
-let workingNotification: number
+let progressNotification: NotificationHandler
+let progressNotificationTimeout: number
 let count: number = 0
 let nodesProcessed: number = 0
 let nodesAmount: number = 0
+let currentPage: number = 1
 let times = new Map()
 let collections
 let toVariables: Variable[] | LibraryVariable[] = []
@@ -42,6 +44,7 @@ let errors: Errors = {
   noVariable: []
 }
 let gotErrors = false
+let showProgress: boolean = false
 let currentScope: Scope
 let availableFonts: Font[] = []
 let loadedFonts: FontName[] = []
@@ -203,12 +206,12 @@ async function startSwap(collections: Collections, scope: Scope) {
       await swapAll(collections)
       break
     case 'thisPage':
-      await swapPage(collections, figma.currentPage)
+      await swapPage(collections, figma.currentPage, { scope: 'thisPage' })
       break
     case 'selection':
       const selection = figma.currentPage.selection
       if (selection.length > 0) {
-        await swapNodes(collections, selection, true)
+        await swapNodes(collections, selection, true, { scope: 'selection' })
       }
       else
         return 'No layers selected'
@@ -219,29 +222,50 @@ async function startSwap(collections: Collections, scope: Scope) {
   }
 }
 
-function initWorkingNotification(nodes) {
-  c(`Initing`)
-  c(nodes)
+function initProgressNotification(nodes, progressOptions: ProgressOptions) {
   nodesProcessed = 0
-  nodesAmount = countChildren(nodes)
-  showWorkingNotification()
+  if (progressOptions.scope !== 'styles')
+    nodesAmount = countChildren(nodes)
+  showProgress = true
+  if (progressOptions.scope !== 'allPages')
+    showProgressNotification(progressOptions)
 }
 
 
 
-function showWorkingNotification() {
+function showProgressNotification(progressOptions: ProgressOptions) {
   c(`Showing work notification`);
-  (function loop() {
-    const message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
-    notify(message, /*{ button: { text: '✕ Cancel', action: cancel } } */)
-    workingNotification = setTimeout(loop, 300);
+  const timeout = progressOptions.scope === 'allPages' ? 1500 : 300
+  let message;
+  (function loop(options = progressOptions) {
+    if (showProgress) {
+      c(`Options ↴`)
+      c(options)
+      switch (options.scope) {
+        case 'allPages':
+          message = `Page ${currentPage} of ${options.pageAmount}  ${generateProgress(Math.round(currentPage / options.pageAmount * 100))}`
+          break
+        case 'styles':
+          message = `Processing style ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
+          break
+        default:
+          message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
+          break
+      }
+      progressNotification = figma.notify(message)
+      progressNotificationTimeout = setTimeout(() => { loop(progressOptions) }, timeout);
+    }
   })();
 }
 
-function stopWorkingNotification() {
-  if (workingNotification)
-    clearTimeout(workingNotification)
-  nodesProcessed = 0
+
+function stopProgressNotification() {
+  showProgress = false
+  if (progressNotification)
+    progressNotification.cancel()
+  if (progressNotificationTimeout)
+    clearTimeout(progressNotificationTimeout)
+
 }
 
 /**
@@ -249,11 +273,12 @@ function stopWorkingNotification() {
  * @param {Collections} collections — object containing source and destination collections
  */
 async function swapAll(collections: Collections) {
-  const pageCount = figma.root.children.length
-  for (let i = 0; i < pageCount; i++) {
+  const pageAmount = figma.root.children.length
+  for (let i = 0; i < pageAmount; i++) {
     const page = figma.root.children[i]
-    notify(`Swapping page ${i + 1} of ${pageCount}: ${page.name}`, { timeout: Infinity })
-    await swapPage(collections, page)
+    currentPage = i + 1
+    notify(`Swapping page ${i + 1} of ${pageAmount}: ${page.name}`, { timeout: Infinity })
+    await swapPage(collections, page, { pageIndex: i + 1, pageAmount: pageAmount, scope: 'allPages' })
   }
 }
 
@@ -262,11 +287,11 @@ async function swapAll(collections: Collections) {
  * @param {Collections} collections — object containing source and destination collections
  * @param {PageNode} page – page to swap
  */
-async function swapPage(collections: Collections, page: PageNode) {
+async function swapPage(collections: Collections, page: PageNode, progressOptions?: ProgressOptions) {
   if (page !== figma.currentPage)
     await page.loadAsync()
-
-  await swapNodes(collections, page.children, true)
+  c(`Current page: ${progressOptions.pageIndex}`)
+  await swapNodes(collections, page.children, true, progressOptions)
 }
 
 /**
@@ -274,10 +299,12 @@ async function swapPage(collections: Collections, page: PageNode) {
  * @param {Collections} collections — object containing source and destination collections
  * @param {SceneNode[]} nodes – nodes to affect
  */
-async function swapNodes(collections: Collections, nodes, first = false) {
+async function swapNodes(collections: Collections, nodes, first = false, progressOptions?: ProgressOptions) {
   if (first) {
+    c(`Swapping first nodes`)
     // Keeping it here for proper multipage work
-    initWorkingNotification(nodes)
+    stopProgressNotification()
+    initProgressNotification(nodes, progressOptions)
   }
   const nodeLength = nodes.length
   c(`Nodes to swap ↴`)
@@ -285,7 +312,7 @@ async function swapNodes(collections: Collections, nodes, first = false) {
   // try {
   for (let i = 0; i < nodeLength; i++) {
     const node = nodes[i]
-  // notify(`Checking node ${i} of ${nodeLength}`)
+    // notify(`Checking node ${i} of ${nodeLength}`)
     c(`Swapping node ${node.name}`)
     // Change explicit mode
     swapMode(node, collections)
@@ -363,7 +390,7 @@ async function swapMode(node, collections) {
   }
   c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
   try {
-  node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
+    node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
   } catch { }
 }
 
@@ -374,27 +401,27 @@ async function swapMode(node, collections) {
  */
 async function swapTextNode(node: TextNode, collections) {
   try {
-  c(`Working with text`)
-  if (!Object.keys(node.boundVariables)) {
-    c(`No variables`)
-    return 'no variables'
-  }
-  // Checking if we need to load font
-  if (Object.keys(node.boundVariables).find(el => affectingInitFont.includes(el))) {
-    c(`Loading fonts ↴`)
-    c(node.getRangeAllFontNames(0, node.characters.length))
-    if (node.hasMissingFont) {
-      error('badProp', { property: 'fontName', nodeName: node.name, nodeId: node.id })
-      return 'badProp'
+    c(`Working with text`)
+    if (!Object.keys(node.boundVariables)) {
+      c(`No variables`)
+      return 'no variables'
     }
-    await Promise.all(
-      node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, loadedFonts))
-    )
-  }
+    // Checking if we need to load font
+    if (Object.keys(node.boundVariables).find(el => affectingInitFont.includes(el))) {
+      c(`Loading fonts ↴`)
+      c(node.getRangeAllFontNames(0, node.characters.length))
+      if (node.hasMissingFont) {
+        error('badProp', { property: 'fontName', nodeName: node.name, nodeId: node.id })
+        return 'badProp'
+      }
+      await Promise.all(
+        node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, loadedFonts))
+      )
+    }
     c(`Properties with variables ↴`)
     c(Object.keys(node.boundVariables))
 
-  // Props that can't be mixed are stored in nonMixedProperties array
+    // Props that can't be mixed are stored in nonMixedProperties array
     c(`Not mixed properties`)
     for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
       c(`Swapping ${property} of ${node.name}`)
@@ -403,32 +430,32 @@ async function swapTextNode(node: TextNode, collections) {
         continue
       }
       if (node[property].toString() === `Symbol(figma.mixed)`) {
-      // Some other random props
-      error('mixed', { nodeName: node.name, nodeId: node.id })
-      continue
+        // Some other random props
+        error('mixed', { nodeName: node.name, nodeId: node.id })
+        continue
+      }
+      else if (complexProperties.includes(property))
+        await swapComplexProperty(node, property, collections)
+      else
+        await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
     }
-    else if (complexProperties.includes(property))
-      await swapComplexProperty(node, property, collections)
-    else
-      await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
-  }
 
-  // Props that can be mixed
+    // Props that can be mixed
     // Also my formatting is broken
     c(`Mixed segments  ↴`)
     c(node.getStyledTextSegments(['boundVariables', 'fills']))
     // Have no clue why fills aren't in bound variables. They surely should be
     for (const segment of node.getStyledTextSegments(['boundVariables', 'fills'])) {
-    c(`Current segment ↴`)
-    c(segment)
+      c(`Current segment ↴`)
+      c(segment)
       // Fills are not here!
-    for (const [property, value] of Object.entries(segment.boundVariables)) {
-      c(`Swapping ranged property ${property} of ${node.name}`)
-      c(`Value ↴`)
-      c(value)
-      // if (complexProperties.includes(property)) { }
-      await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
-    }
+      for (const [property, value] of Object.entries(segment.boundVariables)) {
+        c(`Swapping ranged property ${property} of ${node.name}`)
+        c(`Value ↴`)
+        c(value)
+        // if (complexProperties.includes(property)) { }
+        await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
+      }
       // Fills are here!
       if ('fills' in segment) {
         c(`Swapping ranged fills`)
@@ -446,8 +473,6 @@ async function swapTextNode(node: TextNode, collections) {
     notify(`Can't swap text node ${node.name}: ${e}`, { error: true })
   }
 }
-
-
 
 function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'textRangeFills' | 'fills' | 'textRangeStrokes' | 'strokes' | 'fontFamily' | 'fontWeight' | 'fontSize') {
   // Yes I ✨architectured✨ one-case switch so what
@@ -467,6 +492,8 @@ function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fill
  * @param {Collections} collections — object containing source and destination collections
  */
 async function swapStyles(collections) {
+  stopProgressNotification()
+  initProgressNotification([], { scope: 'styles' })
 
   // This styles got same layers logic, but different names in objects
   const styleReferences = {
@@ -489,12 +516,14 @@ async function swapStyles(collections) {
   c(`Swapping styles`)
   for (const [styleName, reference] of Object.entries(styleReferences)) {
     const styles = await reference.getFunction()
+    nodesAmount += styles.length
     c(`Got ${styles.length} ${styleName}`)
     for (const style of styles) {
       c(`Got style ${style.name}`)
       if (style.boundVariables && Object.entries(style.boundVariables).length > 0) {
         c(`Swapping`)
         style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], reference.layersName, collections, reference.bindFunction, null, style)
+        nodesProcessed++
       }
     }
   }
@@ -604,17 +633,21 @@ async function swapComplexProperty(node, property: string, collections: Collecti
 
 async function swapPropertyLayers(layers, property, collections, bindFunction, node, style?) {
   c(`Swapping layers of ${property}`)
+  c(`Style ↴`)
+  c(style)
+  c(style === undefined)
   // Unaffect styles (otherwise they'll be detached)
-  if (!style &&
+  if (style === undefined && (
     (property === 'fills' && node.fillStyleId && node.fillStyleId.toString() !== `Symbol(figma.mixed)`) ||
     (property === 'effects' && node.effectStyleId && node.effectStyleId.toString() !== `Symbol(figma.mixed)`) ||
     (property === 'grids' && node.gridStyleId && node.gridStyleId.toString() !== `Symbol(figma.mixed)`) ||
-    (property === 'strokes' && node.effectStyleId && node.strokeStyleId.toString() !== `Symbol(figma.mixed)`)
-  ) {
-    c(`Got styles here`)
+    (property === 'strokes' && node.strokeStyleId && node.strokeStyleId.toString() !== `Symbol(figma.mixed)`)
+  )) {
+
     return null
   }
-  else 
+  else {
+    c(`No inner styles`)
   return await Promise.all(
     layers.map(async (layer) => {
       layerCount++
@@ -656,6 +689,7 @@ async function swapPropertyLayers(layers, property, collections, bindFunction, n
       return layer
     })
   )
+}
 }
 
 /**
@@ -796,7 +830,7 @@ async function loadFontsByFamily(fontFamily: string, loadedFontFamilies: string[
 function finish(newCollection = null, message?: string) {
   // showTimers()
   // Killing work notification
-  stopWorkingNotification()
+  stopProgressNotification()
 
   // Sending finish message
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
@@ -813,12 +847,13 @@ function finish(newCollection = null, message?: string) {
   if (message)
     notify(message)
   else if (count > 0) {
-    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} propert${(count === 1 ? "y." : "ies.")}`
+    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} propert${(count === 1 ? "y" : "ies")} of ${nodesProcessed} node${(nodesProcessed === 1 ? "." : "s.")}`
     const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
     notify(`${actionMsg} ${errorMsg}`)
   }
   else {
-    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}`
+    console.log('Idle')
+    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${nodesProcessed} node${(nodesProcessed === 1 ? "." : "s.")}`
     const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
     notify(`${idleMsg} ${errorMsg}`)
   }
@@ -826,9 +861,13 @@ function finish(newCollection = null, message?: string) {
 }
 
 // Show new notification
-function notify(text: string, options: NotificationOptions = {}) {
-  if (notification != null)
+function notify(text: string, options: NotificationOptions = {}, clearProgress = true) {
+  if (clearProgress) {
+    stopProgressNotification()
+  }
+  if (notification != null) {
     notification.cancel()
+  }
   notification = figma.notify(text, options)
 }
 
@@ -836,7 +875,7 @@ function notify(text: string, options: NotificationOptions = {}) {
 function cancel() {
   if (notification != null)
     notification.cancel()
-  stopWorkingNotification()
+  stopProgressNotification()
   if (working) {
     // notify("Plugin work have been interrupted")
   }
