@@ -26,12 +26,9 @@ const OK = -1
 // Variables
 let notification: NotificationHandler
 let working: boolean
+let prevProgressNotification: NotificationHandler
 let progressNotification: NotificationHandler
-let progressNotifications: NotificationHandler[] = []
 let progressNotificationTimeout: number
-// TODO: Remove
-let progressKiller: NotificationHandler
-let progressKillerTimeout: number
 let count: number = 0
 let nodesProcessed: number = 0
 let nodesAmount: number = 0
@@ -231,7 +228,7 @@ function initProgressNotification(nodes, progressOptions: ProgressOptions) {
   if (progressOptions.scope !== 'styles')
     nodesAmount = countChildren(nodes)
   showProgress = true
-  if (progressOptions.scope !== 'allPages')
+  // if (progressOptions.scope !== 'allPages')
     showProgressNotification(progressOptions)
 }
 
@@ -242,14 +239,12 @@ function showProgressNotification(progressOptions: ProgressOptions) {
   const timeout = progressOptions.scope === 'allPages' ? 1500 : 300
   let message;
   (function loop(options = progressOptions) {
-    // TODO: Add previous notification
-    console.log(`again`)
     if (showProgress) {
       c(`Options ↴`)
       c(options)
       switch (options.scope) {
         case 'allPages':
-          message = `Page ${currentPage} of ${options.pageAmount}  ${generateProgress(Math.round(currentPage / options.pageAmount * 100))}`
+          message = `Page ${currentPage} of ${options.pageAmount}. Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(currentPage / options.pageAmount * 100))}`
           break
         case 'styles':
           message = `Processing style ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
@@ -258,7 +253,9 @@ function showProgressNotification(progressOptions: ProgressOptions) {
           message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
           break
       }
-      progressNotifications.push(figma.notify(message, { timeout: timeout + 50 }))
+      prevProgressNotification = progressNotification
+      progressNotification = figma.notify(message, { timeout: timeout + 50 })
+      setTimeout(() => prevProgressNotification?.cancel(), 100)
       progressNotificationTimeout = setTimeout(() => { loop(progressOptions) }, timeout);
     }
   })();
@@ -267,8 +264,8 @@ function showProgressNotification(progressOptions: ProgressOptions) {
 
 function stopProgressNotification() {
   showProgress = false
-  progressNotifications.forEach(el => el.cancel())
-  progressNotifications = []
+  prevProgressNotification?.cancel()
+  progressNotification?.cancel()
   if (progressNotificationTimeout)
     clearTimeout(progressNotificationTimeout)
 
@@ -283,7 +280,6 @@ async function swapAll(collections: Collections) {
   for (let i = 0; i < pageAmount; i++) {
     const page = figma.root.children[i]
     currentPage = i + 1
-    notify(`Swapping page ${i + 1} of ${pageAmount}: ${page.name}`, { timeout: Infinity })
     await swapPage(collections, page, { pageIndex: i + 1, pageAmount: pageAmount, scope: 'allPages' })
   }
 }
@@ -858,7 +854,6 @@ function finish(newCollection = null, message?: string) {
     notify(`${actionMsg} ${errorMsg}`)
   }
   else {
-    console.log('Idle')
     const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${nodesProcessed} node${(nodesProcessed === 1 ? "." : "s.")}`
     const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
     notify(`${idleMsg} ${errorMsg}`)
