@@ -1,5 +1,5 @@
 // Disclamer: I am not a programmer. Read at yor risk
-export const LOGS = true
+export const LOGS = false
 export const TIMERS = false
 
 import { cloneVariables } from './clone'
