@@ -9,7 +9,6 @@ import { c, countChildren, figmaRGBToHex, generateProgress } from './utils'
 // Constants
 const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
-const workingMsgs = ["Working", "Swapping hard", "Checking everything", "Thinking"]
 const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
 const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
 const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'textRangeFills']
@@ -76,8 +75,6 @@ figma.ui.onmessage = async (msg) => {
         notification.cancel()
 
       notification = figma.notify('Working...', { timeout: Infinity })
-      const selection = figma.currentPage.selection
-      const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
 
       const collections: Collections = msg.message.collections
       c(`Collections to swap ↴`)
@@ -194,7 +191,6 @@ async function getCollections() {
  * @param {Scope} scope — selection, current page or all pages
  */
 async function startSwap(collections: Collections, scope: Scope) {
-  // showWorkingNotification()
   if (collections.from.key === collections.to.key) {
     return
   }
@@ -221,7 +217,6 @@ async function startSwap(collections: Collections, scope: Scope) {
       await swapStyles(collections)
       break
   }
-  // stopWorkingNotification()
 }
 
 function initWorkingNotification(nodes) {
@@ -238,13 +233,14 @@ function showWorkingNotification() {
   c(`Showing work notification`);
   (function loop() {
     const message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
-    notify(message)
+    notify(message, /*{ button: { text: '✕ Cancel', action: cancel } } */)
     workingNotification = setTimeout(loop, 300);
   })();
 }
 
 function stopWorkingNotification() {
-  clearTimeout(workingNotification)
+  if (workingNotification)
+    clearTimeout(workingNotification)
   nodesProcessed = 0
 }
 
@@ -806,6 +802,7 @@ function finish(newCollection = null, message?: string) {
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
   const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
+  c(`Count: ${count}`)
   // Expanding to show some errors
   if (errorCount > 0)
     figma.ui.resize(uiSize.width, uiSize.height + 60)
@@ -830,7 +827,6 @@ function finish(newCollection = null, message?: string) {
 
 // Show new notification
 function notify(text: string, options: NotificationOptions = {}) {
-  // stopWorkingNotification()
   if (notification != null)
     notification.cancel()
   notification = figma.notify(text, options)
@@ -840,9 +836,12 @@ function notify(text: string, options: NotificationOptions = {}) {
 function cancel() {
   if (notification != null)
     notification.cancel()
+  stopWorkingNotification()
   if (working) {
-    notify("Plugin work have been interrupted")
+    // notify("Plugin work have been interrupted")
   }
+  finish(collections.to || null,)
+
 }
 
 function showTimers() {

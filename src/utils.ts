@@ -16,26 +16,6 @@ export function delay(ms) {
     });
 }
 
-function showWorkingNotification(msgArray, noficationArray, notificatonId) {
-    const workingWord = msgArray[Math.floor(Math.random() * msgArray.length)]
-    const ntfAmount = 6
-    const ntfLoopDuration = 1000
-    const ntfTimeout = ntfAmount / ntfLoopDuration
-    const ntfDelay = ntfTimeout / ntfAmount
-    noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕛  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout))
-    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕑  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
-    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕓  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
-    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕕  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
-    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕗  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
-    delay(ntfDelay).then(() => noficationArray.push(setInterval(() => notificatonId = figma.notify(`🕙  ${workingWord}`, { timeout: ntfTimeout }), ntfTimeout)))
-}
-
-function stopWorkingNotification(noficationArray, notificatonId) {
-    noficationArray.forEach(interval => clearInterval(interval))
-    noficationArray = []
-    notificatonId.cancel()
-}
-
 export function countChildren(nodes) {
     return nodes.reduce((accumulator,
         node) => {
