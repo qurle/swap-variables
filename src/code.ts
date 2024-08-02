@@ -245,7 +245,6 @@ function showWorkingNotification() {
 
 function stopWorkingNotification() {
   clearTimeout(workingNotification)
-  console.log(`Nodes processed: ${nodesProcessed} of ${nodesAmount}`)
   nodesProcessed = 0
 }
 
@@ -869,7 +868,7 @@ function time(str) {
   return time
 }
 
-function timeEnd(str, show = true) {
+function timeEnd(str, show = TIMERS) {
   if (!TIMERS) return
 
   const time = Date.now() - times.get(str)
