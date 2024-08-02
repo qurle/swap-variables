@@ -27,7 +27,11 @@ const OK = -1
 let notification: NotificationHandler
 let working: boolean
 let progressNotification: NotificationHandler
+let progressNotifications: NotificationHandler[] = []
 let progressNotificationTimeout: number
+// TODO: Remove
+let progressKiller: NotificationHandler
+let progressKillerTimeout: number
 let count: number = 0
 let nodesProcessed: number = 0
 let nodesAmount: number = 0
@@ -238,6 +242,8 @@ function showProgressNotification(progressOptions: ProgressOptions) {
   const timeout = progressOptions.scope === 'allPages' ? 1500 : 300
   let message;
   (function loop(options = progressOptions) {
+    // TODO: Add previous notification
+    console.log(`again`)
     if (showProgress) {
       c(`Options ↴`)
       c(options)
@@ -252,7 +258,7 @@ function showProgressNotification(progressOptions: ProgressOptions) {
           message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
           break
       }
-      progressNotification = figma.notify(message)
+      progressNotifications.push(figma.notify(message, { timeout: timeout + 50 }))
       progressNotificationTimeout = setTimeout(() => { loop(progressOptions) }, timeout);
     }
   })();
@@ -261,8 +267,8 @@ function showProgressNotification(progressOptions: ProgressOptions) {
 
 function stopProgressNotification() {
   showProgress = false
-  if (progressNotification)
-    progressNotification.cancel()
+  progressNotifications.forEach(el => el.cancel())
+  progressNotifications = []
   if (progressNotificationTimeout)
     clearTimeout(progressNotificationTimeout)
 
