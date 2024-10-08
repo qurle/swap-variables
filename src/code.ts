@@ -341,7 +341,7 @@ async function swapNodes(collections: Collections, nodes, first = false, progres
 
     nodesProcessed++
 
-    node.setRelaunchData({ relaunch: '' })
+    // node.setRelaunchData({ relaunch: '' })
     node.setPluginData('currentCollectionKey', collections.to.key)
 
     // Recursion
