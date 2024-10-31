@@ -320,7 +320,7 @@ async function swapNodes(collections: Collections, nodes, first = false, progres
     swapMode(node, collections)
 
     // Special text handling
-    if (node.type === 'TEXT') {
+    if (node.type === 'TEXT' && (node as TextNode).characters.length > 0) {
       await swapTextNode(node, collections)
     } else {
 
@@ -390,10 +390,13 @@ async function swapMode(node, collections) {
     error('noMatch', { name: `Mode "${currentMode.name}"`, type: 'STRING', value: '?', nodeName: node.name, nodeId: node.id })
     return
   }
-  c(`New mode: ${collections.to.modes.find(mode => mode.name === currentMode.name)}`)
+  c(`New mode ↴`)
+  c(collections.to.modes.find(mode => mode.name === currentMode.name))
   try {
     node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
-  } catch { }
+  } catch (e) {
+    console.log(`Couldn't set mode: ${e}`)
+  }
 }
 
 /**
