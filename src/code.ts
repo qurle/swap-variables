@@ -436,7 +436,7 @@ async function swapTextNode(node: TextNode, collections) {
       }
       if (node[property].toString() === `Symbol(figma.mixed)`) {
         // Some other random props
-        error('mixed', { nodeName: node.name, nodeId: node.id })
+        // error('mixed', { nodeName: node.name, nodeId: node.id })
         continue
       }
       else if (complexProperties.includes(property))
