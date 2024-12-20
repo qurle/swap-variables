@@ -15,3 +15,12 @@ export const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*
 export const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
 
 export const uiSize = { width: 300, height: 340 }
+// Unfreezing every 20% of nodes / styles amount, clamped between 50 and 500 by default
+export const unfreezePercentage = 0.2
+// If whole nodes / styles amount is not calculated
+export const defaultUnfreezeRate = 50
+// Skipping this amount of nodes / styles
+export const minUnfreezeRate = defaultUnfreezeRate
+// Every 500 nodes / styles UI SHOULD unfreeze
+export const maxUnfreezeRate = 500 
+

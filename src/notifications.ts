@@ -1,6 +1,6 @@
 import { error, errors, gotErrors } from './errors';
 import { state } from './state';
-import { time, timeEnd as te, timeStart as ts } from './timers';
+import { time, timeEnd as te, timeStart as ts, timeAdd as ta } from './timers';
 import { ProgressOptions } from './types';
 import { c, countChildren, generateProgress } from './utils';
 
@@ -27,10 +27,9 @@ export function notify(text: string, options: NotificationOptions = {}, clearPro
 	currentNotification = figma.notify(text, options)
 }
 
-export async function initProgressNotification(nodes, progressOptions: ProgressOptions) {
+export async function initProgressNotification(nodesAmount, progressOptions: ProgressOptions) {
 	state.nodesProcessed = 0
-	if (progressOptions.scope !== 'styles')
-		state.nodesAmount = countChildren(nodes)
+
 	showProgress = true
 	c(`Initiating progress notification`)
 	// if (progressOptions.scope !== 'allPages')
@@ -50,7 +49,7 @@ export async function showProgressNotification(progressOptions: ProgressOptions)
 	let message: string;
 	(function loop(options = progressOptions) {
 		if (showProgress) {
-			ts('ShowingProgress')
+			ts('showingProgress')
 			c(`Options ↴`)
 			c(options)
 			switch (options.scope) {
@@ -68,8 +67,7 @@ export async function showProgressNotification(progressOptions: ProgressOptions)
 			progressNotification = figma.notify(message, { timeout: timeout + 50 })
 			setTimeout(() => prevProgressNotification?.cancel(), 100)
 			progressNotificationTimeout = setTimeout(() => { loop(progressOptions) }, timeout);
-			if (time['- ShowingProgress'] === undefined) time['- ShowingProgress'] = 0
-			time['- ShowingProgress'] += te('ShowingProgress', false)
+			ta('showingProgress')
 		}
 	})();
 }

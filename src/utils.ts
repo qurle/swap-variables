@@ -1,5 +1,6 @@
-import { logs } from './config'
+import { defaultUnfreezeRate, logs, maxUnfreezeRate, minUnfreezeRate } from './config'
 
+let nodesToUnfreeze = defaultUnfreezeRate
 const progressBar = {
     count: 10,
     indicators: [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'],
@@ -9,6 +10,30 @@ const progressBar = {
 
 // Got it from here https://www.figma.com/plugin-docs/api/properties/nodes-findall/
 const typesWithChildren: NodeType[] = ['BOOLEAN_OPERATION', 'COMPONENT', 'COMPONENT_SET', 'FRAME', 'GROUP', 'INSTANCE', 'PAGE', 'SECTION']
+
+
+
+export function getNodesToUnfreeze() {
+    return nodesToUnfreeze
+}
+
+export function setNodesToUnfreeze(nodesCount = defaultUnfreezeRate) {
+    nodesToUnfreeze = setRangedRandom(clamp(nodesCount, minUnfreezeRate, maxUnfreezeRate))
+    return nodesToUnfreeze
+}
+
+export function setRangedRandom(average = defaultUnfreezeRate) {
+    const bias = 10
+    return getRandomInteger(average - bias, average + bias)
+}
+
+export function getRandomInteger(min: number, max: number): number {
+    return Math.round(Math.floor(Math.random() * (max - min)) + min)
+}
+
+export function clamp(value: number, min: number, max: number) {
+    return Math.min(Math.max(value, min), max)
+}
 
 export function delay(ms) {
     return new Promise(function (resolve) {
@@ -37,16 +62,11 @@ export function generateDetailedProgress(percent) {
 }
 
 // Let figma ui thread to take a little breath
-export async function wakeUpMainThread() {
+export async function wakeUpMainThread(delay = 1000) {
     return await new Promise((resolve) => {
-        setTimeout(resolve, 0)
+        setTimeout(resolve, delay)
     })
 }
-
-export function randomInteger(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min)) + min;
-}
-
 
 export function c(str: any = 'here', type?: 'error' | 'warn') {
     if (!logs)

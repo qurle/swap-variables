@@ -28,16 +28,16 @@ export function timeEnd(str: string, show = timers): number {
 
 export function showTimers() {
 	if (!timers) return
-	console.log(`⏱️ Swapping simple: ${time.swappingSimpleTime} `)
-	console.log(`⏱️ Bounding complex: ${time.boundingComplexTime} `)
-	console.log(`Time per layer: ${Math.round(time.boundingComplexTime / time.layerCount)} `)
-	console.log(`⏱️ Swapping complex: ${time.swappingComplexTime} `)
-	console.log(`Time per layer: ${Math.round(time.swappingComplexTime / time.layerCount)} `)
-	console.log(`⏱️ Finding: ${time.findingTime} `)
-	console.log(`Time per property: ${Math.round(time.findingTime / state.variablesProcessed)} `)
+	console.log(`⏱️ Swapping simple: ${time.swappingSimpleTime} ms`)
+	console.log(`⏱️ Bounding complex: ${time.boundingComplexTime} ms`)
+	console.log(`Time per layer: ${Math.round(time.boundingComplexTime / time.layerCount)} ms`)
+	console.log(`⏱️ Swapping complex: ${time.swappingComplexTime} ms`)
+	console.log(`Time per layer: ${Math.round(time.swappingComplexTime / time.layerCount)} ms`)
+	console.log(`⏱️ Finding: ${time.findingTime} ms`)
+	console.log(`Time per property: ${Math.round(time.findingTime / state.variablesProcessed)} ms`)
 	for (const key in time) {
 		if (key.startsWith('-'))
-			console.log(`⏱️ ${key}: ${time[key]} `)
+			console.log(`⏱️ ${key.replace('-', '')}: ${time[key]} ms`)
 	}
 	clearTimers()
 }

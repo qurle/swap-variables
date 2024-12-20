@@ -1,16 +1,15 @@
 // Disclamer: I am not a programmer. Read at yor risk
 
 import { cloneVariables } from './clone'
-import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, timers, uiSize, useMap } from './config'
+import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, uiSize, unfreezePercentage, useMap } from './config'
 import { clearErrors, error, errorCount, errors } from './errors'
 import { loadFont, loadFontsByFamily } from './fonts'
 import { clearNotifications, initProgressNotification, notify, showFinishNotification, stopProgressNotification } from './notifications'
 import { clearCounters, state } from './state'
-import { clearTimers, showTimers, time, timeAdd as ta, timeEnd as te, timeStart as ts } from './timers'
+import { clearTimers, showTimers, timeAdd as ta, timeEnd as te, time, timeStart as ts } from './timers'
 import { Collection, CollectionsToSwap, ProgressOptions, Scope } from './types'
-import { c, figmaRGBToHex, randomInteger, wakeUpMainThread } from './utils'
+import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, wakeUpMainThread } from './utils'
 
-let nodesToUnfreeze = randomInteger(40, 60)
 
 // Idk why I made this
 const OK = -1
@@ -53,7 +52,9 @@ figma.ui.onmessage = async (msg) => {
       clearCounters()
       clearTimers()
 
-      nodesToUnfreeze = randomInteger(40, 60)
+      // Setting by default, will update later with counting nodes / styles amount
+      setNodesToUnfreeze()
+
       state.availableFonts = await figma.listAvailableFontsAsync()
 
       state.collectionsToSwap = msg.message.collections
@@ -244,6 +245,13 @@ async function swapNodes(collections: CollectionsToSwap, nodes, first = false, p
     c(`Swapping first nodes`)
     // Keeping it here for proper multipage work
     stopProgressNotification()
+    if (progressOptions.scope !== 'styles') {
+      // If styles, set this later
+      state.nodesAmount = countChildren(nodes)
+      console.log(state.nodesAmount)
+      console.log(`Unfreeze nodes rate: ${state.nodesAmount * unfreezePercentage}`)
+      setNodesToUnfreeze(state.nodesAmount * unfreezePercentage)
+    }
     initProgressNotification(nodes, progressOptions)
     ts('mainThread')
     await wakeUpMainThread()
@@ -257,9 +265,9 @@ async function swapNodes(collections: CollectionsToSwap, nodes, first = false, p
     const node = nodes[i]
     c(`Swapping node ${node.name}`)
     // Change explicit mode
-    ts(`Swapping mode`)
+    ts(`swappingModes`)
     swapMode(node, collections)
-    ta('Swapping mode')
+    ta('swappingModes')
 
     // Special text handling
     if (node.type === 'TEXT' && (node as TextNode).characters.length > 0) {
@@ -288,7 +296,7 @@ async function swapNodes(collections: CollectionsToSwap, nodes, first = false, p
     }
 
     state.nodesProcessed++
-    if (state.nodesProcessed % nodesToUnfreeze === 0) {
+    if (state.nodesProcessed % getNodesToUnfreeze() === 0) {
       ts('mainThread')
       await wakeUpMainThread()
       ta('mainThread')
@@ -470,7 +478,7 @@ function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fill
  */
 async function swapStyles(collections: CollectionsToSwap) {
   stopProgressNotification()
-  initProgressNotification([], { scope: 'styles' })
+  initProgressNotification(null, { scope: 'styles' })
 
   // This styles got same layers logic, but different names in objects
   const styleReferences = {
@@ -504,6 +512,8 @@ async function swapStyles(collections: CollectionsToSwap) {
       }
     }
   }
+  setNodesToUnfreeze(state.nodesAmount * unfreezePercentage)
+
 
   // Text doesn't contain any layers so logic differs here
   const textStyles = await figma.getLocalTextStylesAsync()
@@ -693,18 +703,20 @@ async function swapComponentProperty(node, value, collections: CollectionsToSwap
 
 
 async function getNewVariable(variable, collections: CollectionsToSwap, node, style?, property?) {
-  const variableObject = await v.getVariableByIdAsync(variable.id)
+  // Resolving variable if it's an alias
+  // Cheking by property that doesn't exists in aliases
+  const resolvedVariable = variable?.resolvedType ? variable : await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
-  c(variableObject)
+  c(resolvedVariable)
   try {
-    variableObject.variableCollectionId
+    resolvedVariable.variableCollectionId
   }
   catch (e) {
     error('noVariable', { variableId: variable.id, nodeName: node?.name || style?.name || null, nodeId: node?.id || style?.id || null, property: property })
     return
   }
 
-  if (!collections.from.id.includes(variableObject.variableCollectionId.match(rCollectionId)?.[1])) {
+  if (!collections.from.id.includes(resolvedVariable.variableCollectionId.match(rCollectionId)?.[1])) {
     c(`Variable doesn't belong to source collection`)
     return
   }
@@ -712,20 +724,20 @@ async function getNewVariable(variable, collections: CollectionsToSwap, node, st
   c(`Variable belongs to source collection`)
   let newVariable
   try {
-    newVariable = await findVariable(collections.to, variableObject)
+    newVariable = await findVariable(collections.to, resolvedVariable)
     state.variablesProcessed++
   }
   catch {
     let value = node ?
-      variableObject.resolveForConsumer(node).value : '?'
+      resolvedVariable.resolveForConsumer(node).value : '?'
 
-    if (variableObject.resolvedType === 'COLOR') {
+    if (resolvedVariable.resolvedType === 'COLOR') {
       value = figmaRGBToHex(value as RGB | RGBA)
     }
-    error('noMatch', { name: variableObject.name, type: variableObject.resolvedType, value: value, nodeName: node?.name || style?.name || null, nodeId: node?.id || style?.id || null })
+    error('noMatch', { name: resolvedVariable.name, type: resolvedVariable.resolvedType, value: value, nodeName: node?.name || style?.name || null, nodeId: node?.id || style?.id || null })
   }
 
-  return newVariable || variableObject
+  return newVariable || resolvedVariable
 }
 
 
