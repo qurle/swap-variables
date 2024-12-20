@@ -1,10 +1,12 @@
 export type Scope = 'selection' | 'thisPage' | 'allPages' | 'styles'
 
-export interface Collections {
+export interface CollectionsToSwap {
     from: Collection,
     to: Collection
 }
 
+// Simplified representation of Figma variable collection
+// Can optionally contain the original VariableCollection of Figma's
 export interface Collection {
     lib: string,
     name: string,
@@ -14,7 +16,8 @@ export interface Collection {
         modeId: string
     }[],
     id?: string,
-    local?: boolean
+    local?: boolean,
+    variableCollection?: VariableCollection
 }
 
 // Actual structure

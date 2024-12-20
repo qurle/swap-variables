@@ -1,4 +1,4 @@
-import { LOGS } from './code';
+import { logs } from './config'
 
 const progressBar = {
     count: 10,
@@ -7,13 +7,15 @@ const progressBar = {
     empty: `░`
 }
 
+let mainThreadInterval: number
+
 // Got it from here https://www.figma.com/plugin-docs/api/properties/nodes-findall/
 const typesWithChildren: NodeType[] = ['BOOLEAN_OPERATION', 'COMPONENT', 'COMPONENT_SET', 'FRAME', 'GROUP', 'INSTANCE', 'PAGE', 'SECTION']
 
 export function delay(ms) {
     return new Promise(function (resolve) {
-        setTimeout(resolve, ms);
-    });
+        setTimeout(resolve, ms)
+    })
 }
 
 export function countChildren(nodes) {
@@ -36,8 +38,20 @@ export function generateDetailedProgress(percent) {
     return '[' + progressBar.filled.repeat(currentProgress) + partlyFilled + progressBar.empty.repeat(Math.max(progressBar.count - currentProgress - 1, 0)) + ']'
 }
 
+// Let figma ui thread to take a little breath
+export async function wakeUpMainThread(msg = '') {
+    return await new Promise((resolve) => {
+        setTimeout(resolve, 0)
+    })
+}
+
+export function randomInteger(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min)) + min;
+}
+
+
 export function c(str: any = 'here', type?: 'error' | 'warn') {
-    if (!LOGS)
+    if (!logs)
         return
     switch (type) {
         case 'error':

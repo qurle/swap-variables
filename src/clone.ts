@@ -1,4 +1,4 @@
-import { error } from './code'
+import { error } from './errors'
 import { Collection } from './types'
 import { c } from './utils'
 
@@ -9,7 +9,13 @@ const tl = figma.teamLibrary
 // Const
 const platforms: CodeSyntaxPlatform[] = ['WEB', 'ANDROID', 'iOS']
 
-export async function cloneVariables(from: Collection): Promise<{ collection: Collection, variables: Variable[] }> {
+/**
+ * Clones variables from one collection to another and creates a new variable collection.
+ * 
+ * @param {Collection} from - The source collection from which variables are to be cloned.
+ * @returns {Promise<{ collection: Collection, variablesMap: Map<string, Variable> }>} - Returns a new collection and a map of variables.
+ */
+export async function cloneVariables(from: Collection): Promise<{ collection: Collection, variablesMap: Map<string, Variable> }> {
 
     let fromVariables: Variable[]
     let fromCollection: VariableCollection
@@ -37,24 +43,28 @@ export async function cloneVariables(from: Collection): Promise<{ collection: Co
             toCollection.removeMode(toCollection.modes[0].modeId)
     }
 
+    let toVariablesMap = new Map<string, Variable>(toVariables.map(v => [v.name, v]))
+
     return {
         collection: {
-        lib: "Local Collections",
-        name: toCollection.name,
-        key: toCollection.key,
-        id: toCollection.id,
-        local: true
+            lib: "Local Collections",
+            name: toCollection.name,
+            key: toCollection.key,
+            id: toCollection.id,
+            local: true
         } as Collection,
-        variables: toVariables
+        variablesMap: toVariablesMap
     }
 }
 
 async function createCollection(from: Collection) {
-    // const copyRegex = /\(copy(?: ([0-9]+))*\)/
-    // Create new collection
-    const collectionName = (from.local || await sameNameExist(from.name))
-        ? from.name + ' (copy)'
-        : from.name
+    let collectionName = from.name
+    let copyIndex = 0
+
+    while (await sameNameExist(collectionName)) {
+        copyIndex++
+        collectionName = from.name + (copyIndex === 1 ? ' (copy)' : ` (copy ${copyIndex})`)
+    }
 
     return v.createVariableCollection(collectionName)
 }

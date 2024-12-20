@@ -20,6 +20,7 @@
         --radius-s: 0.25rem;
 
         background-color: var(--figma-color-bg);
+        color: var(--figma-color-text);
     }
 
     :root.figma-light {
@@ -36,7 +37,6 @@
         padding: 0;
         margin: 0;
         box-sizing: border-box;
-        color: var(--figma-color-text);
     }
 
     *:focus-visible {
@@ -252,10 +252,23 @@
     }
 
     button.primary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
         width: 100%;
         background: var(--vk-color-accent-themed);
         color: var(--figma-color-bg-secondary);
         opacity: 1;
+    }
+
+    button.primary .loader {
+        display: none;
+        height: 1rem;
+    }
+
+    button.primary .loader.show {
+        display: block;
     }
 
     button.primary:disabled {
@@ -457,7 +470,20 @@
                     <path d="M8 6.5V18.5M8 18.5L12 14.375M8 18.5L4 14.375" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
             </button>
-            <button type="submit" class="primary">Swap Variables</button>
+            <button type="submit" class="primary"><span>Swap Variables</span>
+                <svg class="loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+                    <radialGradient id="a4" cx=".66" fx=".66" cy=".3125" fy=".3125" gradientTransform="scale(1.5)">
+                        <stop offset="0" stop-color="#FFFFFF"></stop>
+                        <stop offset=".3" stop-color="#FFFFFF" stop-opacity=".9"></stop>
+                        <stop offset=".6" stop-color="#FFFFFF" stop-opacity=".6"></stop>
+                        <stop offset=".8" stop-color="#FFFFFF" stop-opacity=".3"></stop>
+                        <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"></stop>
+                    </radialGradient>
+                    <circle transform-origin="center" fill="none" stroke="url(#a4)" stroke-width="30" stroke-linecap="round" stroke-dasharray="200 1000" stroke-dashoffset="0" cx="100" cy="100" r="70">
+                        <animateTransform type="rotate" attributeName="transform" calcMode="spline" dur="2" values="360;0" keyTimes="0;1" keySplines="0 0 1 1" repeatCount="indefinite"></animateTransform>
+                    </circle>
+                    <circle transform-origin="center" fill="none" opacity=".2" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" cx="100" cy="100" r="70"></circle>
+                </svg></button>
         </div>
         <!-- <a target="_top" class="feedback" href="mailto:nikita.denisov@vk.team?subject=Swap%20Variables">Send feedback</a> -->
         <div class="errors">
@@ -492,6 +518,7 @@
     const reverse = form.querySelector('button.reverse')
     const errorsEl = document.querySelector('.errors')
     const heading = errorsEl.querySelector('h2')
+                        const submitText = form.querySelector('button[type=submit] span')
     const submit = form.querySelector('button[type=submit]')
     const loader = document.querySelector('.loader')
 
@@ -533,7 +560,8 @@
         clearErrors()
 
         submit.disabled = true
-        submit.innerText = 'Swapping...'
+        submitText.innerText = 'Swapping...'
+        loader.classList.add('show')
 
         const from = selectFrom.selectedOptions[0]
         const to = selectTo.selectedOptions[0]
@@ -552,7 +580,6 @@
                             key: from.dataset.key,
                             id: from.dataset.id,
                             local: from.dataset.local === 'true',
-                            modes: JSON.parse(from.dataset.modes)
                         },
                         to: to.dataset.id ? {
                             lib: to.dataset.lib,
@@ -560,7 +587,6 @@
                             key: to.dataset.key,
                             id: to.dataset.id,
                             local: to.dataset.local === 'true',
-                            modes: JSON.parse(to.dataset.modes)
                         } : null
                     },
                     scope: scope
@@ -599,7 +625,6 @@
                 option.dataset.key = collection.key
                 option.dataset.id = collection.id
                 option.dataset.local = collection.local
-                option.dataset.modes = JSON.stringify(collection.modes)
                 optgroup.appendChild(option)
             }
             selectFrom.appendChild(optgroup)
@@ -625,7 +650,6 @@
         }
 
         console.timeEnd('Filling libs')
-
     }
 
     function defineScope(scope) {
@@ -642,7 +666,9 @@
         }
 
         submit.disabled = false
-        submit.innerText = 'Swap Variables'
+        submitText.innerText = 'Swap Variables'
+        loader.classList.remove('show')
+
         reverseSelects()
     }
 
@@ -658,7 +684,7 @@
         option.dataset.name = newCollection.name
         option.dataset.key = newCollection.key
         option.dataset.id = newCollection.id
-        option.dataset.local = JSON.stringify(newCollection.local)
+        option.dataset.local = newCollection?.local.toString()
 
         const localOptgroupSelector = `optgroup[label="${newCollection.lib}"]`
         let localOptgroupFrom = selectFrom.querySelector(localOptgroupSelector)

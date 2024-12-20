@@ -1,111 +1,87 @@
 // Disclamer: I am not a programmer. Read at yor risk
-export const LOGS = false
-export const TIMERS = false
 
 import { cloneVariables } from './clone'
-import { Collections, Errors, ProgressOptions, Scope } from './types'
-import { c, countChildren, figmaRGBToHex, generateProgress } from './utils'
+import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, timers, uiSize, useMap } from './config'
+import { clearErrors, error, errorCount, errors } from './errors'
+import { loadFont, loadFontsByFamily } from './fonts'
+import { clearNotifications, initProgressNotification, notify, showFinishNotification, stopProgressNotification } from './notifications'
+import { clearCounters, state } from './state'
+import { clearTimers, showTimers, time, timeAdd as ta, timeEnd as te, timeStart as ts } from './timers'
+import { Collection, CollectionsToSwap, ProgressOptions, Scope } from './types'
+import { c, figmaRGBToHex, randomInteger, wakeUpMainThread } from './utils'
 
-// Constants
-const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
-const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
-const complexProperties = ['fills', 'strokes', 'layoutGrids', 'effects']
-const typographyProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'paragraphIndent']
-const mixedProperties = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'textRangeFills']
-const affectingInitFont = ['characters', 'fontSize', 'fontName', 'textStyleId', 'textCase', 'textDecoration', 'letterSpacing', 'leadingTrim', 'lineHeight']
-const notAffectingFont = ['fills', 'fillStyleId', 'strokes', 'strokeWeight', 'strokeAlign', 'strokeStyleId']
-
-const rCollectionId = /(VariableCollectionId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
-const rVariableId = /(VariableId:(?:\w|:)*)(?:\/[0-9]*:[0-9]*)?/
-
-const uiSize = { width: 300, height: 340 }
+let nodesToUnfreeze = randomInteger(40, 60)
 
 // Idk why I made this
 const OK = -1
-
-// Variables
-let notification: NotificationHandler
-let working: boolean
-let prevProgressNotification: NotificationHandler
-let progressNotification: NotificationHandler
-let progressNotificationTimeout: number
-let count: number = 0
-let nodesProcessed: number = 0
-let nodesAmount: number = 0
-let currentPage: number = 1
-let times = new Map()
-let collections
-let toVariables: Variable[] | LibraryVariable[] = []
-let errors: Errors = {
-  limitation: [],
-  noMatch: [],
-  mixed: [],
-  badProp: [],
-  unsupported: [],
-  noVariable: []
-}
-let gotErrors = false
-let showProgress: boolean = false
-let currentScope: Scope
-let availableFonts: Font[] = []
-let loadedFonts: FontName[] = []
-let loadedFontFamilies: string[] = []
 
 // Shorthands
 const v = figma.variables
 const tl = figma.teamLibrary
 
+ts('Cold start')
 // Cancel on page change
 figma.on("currentpagechange", cancel)
 
 // Connect with UI
 figma.showUI(__html__, { themeColors: true, width: uiSize.width, height: uiSize.height, })
 
+// Engine start
+run()
+
+async function run() {
+  const scope = await figma.clientStorage.getAsync('scope')
+  figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
+  state.collectionList = await getCollections()
+
+  ts('Getting current collection')
+  const selection = figma.currentPage.selection
+  const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
+  let currentCollectionKey = nodes[0].getPluginData('currentCollectionKey')
+  currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
+  te('Getting current collection')
+
+  figma.ui.postMessage({ type: 'collections', message: { collections: state.collectionList, current: currentCollectionKey } })
+}
+
+// Reactions to UI
 figma.ui.onmessage = async (msg) => {
   switch (msg.type) {
+    // Main action for big blue button
     case 'swap':
+      clearErrors()
+      clearCounters()
+      clearTimers()
 
-      errors = {
-        limitation: [],
-        noVariable: [],
-        noMatch: [],
-        mixed: [],
-        badProp: [],
-        unsupported: [],
-      }
-      count = 0
+      nodesToUnfreeze = randomInteger(40, 60)
+      state.availableFonts = await figma.listAvailableFontsAsync()
 
-      if (notification != null)
-        notification.cancel()
-
-      notification = figma.notify('Working...', { timeout: Infinity })
-
-      const collections: Collections = msg.message.collections
+      state.collectionsToSwap = msg.message.collections
       c(`Collections to swap ↴`)
-      c(collections)
-      const newCollection = collections.to === null
-      currentScope = msg.message.scope
+      c(state.collectionsToSwap)
+      const newCollection = state.collectionsToSwap.to === null
+      state.currentScope = msg.message.scope
       c(`Scope of swapping ↴`)
-      c(currentScope)
+      c(state.currentScope)
 
-      await figma.clientStorage.setAsync('scope', currentScope)
+      figma.clientStorage.setAsync('scope', state.currentScope)
 
+      // Cloning variables
       if (newCollection) {
-        const { collection, variables } = (await cloneVariables(collections.from))
-        collections.to = collection
-        toVariables = variables
+        const { collection, variablesMap } = (await cloneVariables(state.collectionsToSwap.from))
+        state.collectionsToSwap.to = collection
+        state.toVariablesMap = variablesMap
         c(`Cloned variables`)
       }
 
       figma.ui.resize(uiSize.width, uiSize.height)
 
-      const message = await startSwap(collections, currentScope)
-      finish(newCollection ? collections.to : null, message)
+      const message = await startSwap(state.collectionsToSwap, state.currentScope)
+      finish(newCollection ? state.collectionsToSwap.to : null, message)
       break
 
     case 'goToNode': {
-      if (currentScope === 'styles') {
-
+      if (state.currentScope === 'styles') {
         notify(`Error in ${(await figma.getStyleByIdAsync(msg.message.nodeId)).name} style`)
         break
       }
@@ -124,33 +100,12 @@ figma.ui.onmessage = async (msg) => {
   }
 }
 
-
-// Engine start
-run(figma.currentPage)
-
-async function run(node: SceneNode | PageNode) {
-  const scope = await figma.clientStorage.getAsync('scope')
-  figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
-
-  availableFonts = await figma.listAvailableFontsAsync()
-  collections = await getCollections()
-
-  time('Getting current collection')
-  const selection = figma.currentPage.selection
-  const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
-  let currentCollectionKey = nodes[0].getPluginData('currentCollectionKey')
-  currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
-  timeEnd('Getting current collection')
-
-  figma.ui.postMessage({ type: 'collections', message: { collections: collections, current: currentCollectionKey } })
-}
-
 /**
  * Saving local and external collections that have > 0 variables
- * @returns {Collections} List of collections
+ * @returns {Promise<Collection[]>} List of available collections
  */
-async function getCollections() {
-  time('Getting internal collections')
+async function getCollections(): Promise<Collection[]> {
+  ts('Getting internal collections')
   const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({
     key: el.key,
     lib: 'Local Collections',
@@ -161,28 +116,37 @@ async function getCollections() {
   }))
   c(`Got local collections ↴`)
   c(localCollections)
-  timeEnd('Getting internal collections')
+  te('Getting internal collections')
 
-  time('Getting external collections')
+  ts('Getting external collections')
+  ts('List of external collections')
   const allExternalCollections = await tl.getAvailableLibraryVariableCollectionsAsync()
+  te('List of external collections')
 
   // Non empty collections
   const externalCollections = []
   for (const collection of allExternalCollections) {
+    ts(`Variables for ${collection.key}`)
     const variables = await tl.getVariablesInLibraryCollectionAsync(collection.key)
+    te(`Variables for ${collection.key}`)
+
     if (variables.length > 0) {
       externalCollections.push(collection)
       // Finding ID by importing variable from collection
+      ts(`Importing variable ${variables[0].key}`)
       const firstVariable = await v.importVariableByKeyAsync(variables[0].key)
+      te(`Importing variable ${variables[0].key}`)
+
       collection['id'] = firstVariable.variableCollectionId
       collection['local'] = false
-      collection['modes'] = (await v.getVariableCollectionByIdAsync(collection['id'])).modes
+      // We'll set ['modes'] later 
+
       // Renaming libraryName -> lib (as in local)
       delete Object.assign(collection, { ['lib']: collection['libraryName'] })['libraryName']
       c(collection)
     }
   }
-  timeEnd('Getting external collections')
+  te('Getting external collections')
 
   const collections = [...externalCollections, ...localCollections]
   c(collections)
@@ -191,16 +155,38 @@ async function getCollections() {
 
 /**
  * Entry point to swap variables within selected in UI scope
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  * @param {Scope} scope — selection, current page or all pages
  */
-async function startSwap(collections: Collections, scope: Scope) {
+async function startSwap(collections: CollectionsToSwap, scope: Scope) {
+  ts('Whole swap')
+  // Same collections? No need to swap
   if (collections.from.key === collections.to.key) {
     return
   }
-  toVariables = collections.to.local === true ?
+
+  ts('relaunchData')
+  figma.currentPage.selection.forEach(node => node.setPluginData('currentCollectionKey', collections.to.key))
+  ta('relaunchData')
+
+  // Get variables based on local or external collection
+  const toVariables = collections.to.local === true ?
+  // Just cherry-picking local variables
     (await v.getLocalVariablesAsync()).filter(el => el.variableCollectionId === collections.to.id) :
-    (await tl.getVariablesInLibraryCollectionAsync(collections.to.key))
+    // Resolving external variables by key
+    await Promise.all((await tl.getVariablesInLibraryCollectionAsync(collections.to.key)).map(async variable => await v.importVariableByKeyAsync(variable.key)))
+
+  // Converting to map to speed this shit up
+  state.toVariablesMap = new Map(toVariables.map((el: Variable) => [el.name, el]))
+
+  // Getting modes for collections
+  const resolvedToCollection = await v.getVariableCollectionByIdAsync(collections.to.id)
+  collections.from.modes = (await v.getVariableCollectionByIdAsync(collections.from.id)).modes
+  collections.to.modes = resolvedToCollection.modes
+  if (collections.from.modes.length > 1 && collections.to.modes.length > 1) {
+    // Need to store this collection only if we set explicit modes
+    collections.to.variableCollection = await v.getVariableCollectionByIdAsync(collections.to.id)
+  }
 
   switch (scope) {
     case 'allPages':
@@ -223,73 +209,25 @@ async function startSwap(collections: Collections, scope: Scope) {
   }
 }
 
-function initProgressNotification(nodes, progressOptions: ProgressOptions) {
-  nodesProcessed = 0
-  if (progressOptions.scope !== 'styles')
-    nodesAmount = countChildren(nodes)
-  showProgress = true
-  // if (progressOptions.scope !== 'allPages')
-    showProgressNotification(progressOptions)
-}
-
-
-
-function showProgressNotification(progressOptions: ProgressOptions) {
-  c(`Showing work notification`);
-  const timeout = progressOptions.scope === 'allPages' ? 1500 : 300
-  let message;
-  (function loop(options = progressOptions) {
-    if (showProgress) {
-      c(`Options ↴`)
-      c(options)
-      switch (options.scope) {
-        case 'allPages':
-          message = `Page ${currentPage} of ${options.pageAmount}. Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(currentPage / options.pageAmount * 100))}`
-          break
-        case 'styles':
-          message = `Processing style ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
-          break
-        default:
-          message = `Processing node ${nodesProcessed} of ${nodesAmount}  ${generateProgress(Math.round(nodesProcessed / nodesAmount * 100))}`
-          break
-      }
-      prevProgressNotification = progressNotification
-      progressNotification = figma.notify(message, { timeout: timeout + 50 })
-      setTimeout(() => prevProgressNotification?.cancel(), 100)
-      progressNotificationTimeout = setTimeout(() => { loop(progressOptions) }, timeout);
-    }
-  })();
-}
-
-
-function stopProgressNotification() {
-  showProgress = false
-  prevProgressNotification?.cancel()
-  progressNotification?.cancel()
-  if (progressNotificationTimeout)
-    clearTimeout(progressNotificationTimeout)
-
-}
-
 /**
  * Swapping all the pages
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapAll(collections: Collections) {
+async function swapAll(collections: CollectionsToSwap) {
   const pageAmount = figma.root.children.length
   for (let i = 0; i < pageAmount; i++) {
     const page = figma.root.children[i]
-    currentPage = i + 1
+    state.currentPage = i + 1
     await swapPage(collections, page, { pageIndex: i + 1, pageAmount: pageAmount, scope: 'allPages' })
   }
 }
 
 /**
  * Checking if page is loaded and swapping variables on whole page
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  * @param {PageNode} page – page to swap
  */
-async function swapPage(collections: Collections, page: PageNode, progressOptions?: ProgressOptions) {
+async function swapPage(collections: CollectionsToSwap, page: PageNode, progressOptions?: ProgressOptions) {
   if (page !== figma.currentPage)
     await page.loadAsync()
   c(`Current page: ${progressOptions.pageIndex}`)
@@ -298,51 +236,63 @@ async function swapPage(collections: Collections, page: PageNode, progressOption
 
 /**
  * Main recursive function for swapping variables 
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  * @param {SceneNode[]} nodes – nodes to affect
  */
-async function swapNodes(collections: Collections, nodes, first = false, progressOptions?: ProgressOptions) {
+async function swapNodes(collections: CollectionsToSwap, nodes, first = false, progressOptions?: ProgressOptions) {
   if (first) {
     c(`Swapping first nodes`)
     // Keeping it here for proper multipage work
     stopProgressNotification()
     initProgressNotification(nodes, progressOptions)
+    ts('mainThread')
+    await wakeUpMainThread()
+    ta('mainThread')
+
   }
   const nodeLength = nodes.length
   c(`Nodes to swap ↴`)
   c(nodes)
-  // try {
   for (let i = 0; i < nodeLength; i++) {
     const node = nodes[i]
-    // notify(`Checking node ${i} of ${nodeLength}`)
     c(`Swapping node ${node.name}`)
     // Change explicit mode
+    ts(`Swapping mode`)
     swapMode(node, collections)
+    ta('Swapping mode')
 
     // Special text handling
     if (node.type === 'TEXT' && (node as TextNode).characters.length > 0) {
+      ts('textHandling')
       await swapTextNode(node, collections)
+      ta('textHandling')
     } else {
-
+      // Non-text nodes
       for (let [property, value] of Object.entries(node.boundVariables || {})) {
-
         if (property === 'componentProperties') {
           await swapComponentProperty(node, value, collections)
         }
         else if (Array.isArray(value)) {
           // Complex immutable properties
+          ts('swappingComplex')
           await swapComplexProperty(node, property, collections)
+          ta('swappingComplex')
+
         }
         else {
+          ts('swappingSimple')
           await swapSimpleProperty(node, value, property, collections)
+          ta('swappingSimple')
         }
       }
     }
 
-    nodesProcessed++
-
-    // node.setRelaunchData({ relaunch: '' })
-    node.setPluginData('currentCollectionKey', collections.to.key)
+    state.nodesProcessed++
+    if (state.nodesProcessed % nodesToUnfreeze === 0) {
+      ts('mainThread')
+      await wakeUpMainThread()
+      ta('mainThread')
+    }
 
     // Recursion
     if (node.children && node.children.length > 0) {
@@ -350,17 +300,19 @@ async function swapNodes(collections: Collections, nodes, first = false, progres
       await swapNodes(collections, node.children)
     }
   }
-  // } catch (e) {
-  //   figma.closePlugin(`${e}`)
-  // }
 }
+
 
 /**
  * Swapping explicit mode if source collection has mode with the same name 
  * @param {SceneNode} node – node that may have explicit mode
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapMode(node, collections) {
+async function swapMode(node: SceneNode, collections: CollectionsToSwap) {
+  // If one mode in collection, no need to swap
+  if (collections.from.modes.length === 1 || collections.to.modes.length === 1)
+    return
+
   const explicitMode = (node.explicitVariableModes[collections.from.id])
   if (!explicitMode)
     return
@@ -393,40 +345,44 @@ async function swapMode(node, collections) {
   c(`New mode ↴`)
   c(collections.to.modes.find(mode => mode.name === currentMode.name))
   try {
-    node.setExplicitVariableModeForCollection(collections.to, newMode.modeId)
-  } catch (e) {
-    console.log(`Couldn't set mode: ${e}`)
+    node.setExplicitVariableModeForCollection(collections.to.variableCollection, newMode.modeId)
+  } catch {
   }
 }
 
 /**
  * Swap variables of text node
  * @param {SceneNode} node – node to affect
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapTextNode(node: TextNode, collections) {
+async function swapTextNode(node: TextNode, collections: CollectionsToSwap) {
   try {
     c(`Working with text`)
+    ts('textCheckingVariables')
     if (!Object.keys(node.boundVariables)) {
       c(`No variables`)
       return 'no variables'
     }
+    ta('textCheckingVariables')
+
     // Checking if we need to load font
+    ts(`loadingFonts`)
     if (Object.keys(node.boundVariables).find(el => affectingInitFont.includes(el))) {
       c(`Loading fonts ↴`)
-      c(node.getRangeAllFontNames(0, node.characters.length))
       if (node.hasMissingFont) {
         error('badProp', { property: 'fontName', nodeName: node.name, nodeId: node.id })
         return 'badProp'
       }
       await Promise.all(
-        node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, loadedFonts))
+        node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName))
       )
     }
+    ta(`loadingFonts`)
     c(`Properties with variables ↴`)
     c(Object.keys(node.boundVariables))
 
     // Props that can't be mixed are stored in nonMixedProperties array
+    ts('textSwappingNonMixed')
     c(`Not mixed properties`)
     for (const property of Object.keys(node.boundVariables).filter(el => !mixedProperties.includes(el))) {
       c(`Swapping ${property} of ${node.name}`)
@@ -439,14 +395,23 @@ async function swapTextNode(node: TextNode, collections) {
         // error('mixed', { nodeName: node.name, nodeId: node.id })
         continue
       }
-      else if (complexProperties.includes(property))
+      else if (complexProperties.includes(property)) {
+        ts('textSwappingComplex')
         await swapComplexProperty(node, property, collections)
-      else
+        ta('textSwappingComplex')
+      }
+      else {
+        ts('textSwappingSimple')
         await swapSimpleProperty(node, node.boundVariables[property][0] || node.boundVariables[property], property, collections)
+        ta('textSwappingSimple')
+      }
     }
+    ta('textSwappingNonMixed')
+
 
     // Props that can be mixed
     // Also my formatting is broken
+    ts('textSwappingMixed')
     c(`Mixed segments  ↴`)
     c(node.getStyledTextSegments(['boundVariables', 'fills']))
     // Have no clue why fills aren't in bound variables. They surely should be
@@ -458,11 +423,14 @@ async function swapTextNode(node: TextNode, collections) {
         c(`Swapping ranged property ${property} of ${node.name}`)
         c(`Value ↴`)
         c(value)
+        ts('textSwappingMixedSimple')
         // if (complexProperties.includes(property)) { }
         await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
+        ta('textSwappingMixedSimple')
       }
       // Fills are here!
       if ('fills' in segment) {
+        ts('textSwappingMixedFills')
         c(`Swapping ranged fills`)
         if (!segmentHasStyles(node, segment, 'textRangeFills')) {
           c(`No styles here`)
@@ -471,8 +439,10 @@ async function swapTextNode(node: TextNode, collections) {
           if (newPropertyLayers)
             node.setRangeFills(segment.start, segment.end, newPropertyLayers)
         }
+        ta('textSwappingMixedFills')
       }
     }
+    ta('textSwappingMixed')
   }
   catch (e) {
     notify(`Can't swap text node ${node.name}: ${e}`, { error: true })
@@ -481,11 +451,13 @@ async function swapTextNode(node: TextNode, collections) {
 
 function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'textRangeFills' | 'fills' | 'textRangeStrokes' | 'strokes' | 'fontFamily' | 'fontWeight' | 'fontSize') {
   // Yes I ✨architectured✨ one-case switch so what
+  ts('textFindingStyleSegment')
   switch (type) {
     case 'textRangeFills':
     case 'fills':
       c(`Style from ${segment.start} to ${segment.end}: ${String(node.getRangeFillStyleId(segment.start, segment.end)) || 'Not found'}`)
       c(`Returning ${node.getRangeFillStyleId(segment.start, segment.end) !== ''}`)
+      ta('textFindingStyleSegment')
       return node.getRangeFillStyleId(segment.start, segment.end) !== ''
     default:
       return false
@@ -494,9 +466,9 @@ function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fill
 
 /**
  * Swapping local styles 
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapStyles(collections) {
+async function swapStyles(collections: CollectionsToSwap) {
   stopProgressNotification()
   initProgressNotification([], { scope: 'styles' })
 
@@ -521,14 +493,14 @@ async function swapStyles(collections) {
   c(`Swapping styles`)
   for (const [styleName, reference] of Object.entries(styleReferences)) {
     const styles = await reference.getFunction()
-    nodesAmount += styles.length
+    state.nodesAmount += styles.length
     c(`Got ${styles.length} ${styleName}`)
     for (const style of styles) {
       c(`Got style ${style.name}`)
       if (style.boundVariables && Object.entries(style.boundVariables).length > 0) {
         c(`Swapping`)
         style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], reference.layersName, collections, reference.bindFunction, null, style)
-        nodesProcessed++
+        state.nodesProcessed++
       }
     }
   }
@@ -538,7 +510,7 @@ async function swapStyles(collections) {
   for (const style of textStyles) {
     c(`Bound variables ↴`)
     c(style.boundVariables)
-    await loadFont(style.fontName, loadedFonts)
+    await loadFont(style.fontName)
     for (const [field, variable] of Object.entries(style.boundVariables)) {
       c(`Setting field ${field}`)
       c(`Current variable ↴`)
@@ -548,7 +520,7 @@ async function swapStyles(collections) {
         continue
       if (field === 'fontFamily') {
         for (const family of Object.values(newVariable.valuesByMode)) {
-          await loadFontsByFamily(family as string, loadedFontFamilies, availableFonts)
+          await loadFontsByFamily(family as string, state.availableFonts)
         }
       }
       //@ts-ignore
@@ -557,18 +529,16 @@ async function swapStyles(collections) {
   }
 }
 
-let swappingSimpleTime = 0
-
 /**
  * Swap variable of simple property
  * @param {SceneNode} node – node to affect
  * @param value – current value
  * @param property – name of property to swap
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  * @param range — range of application (for texts)
  */
 async function swapSimpleProperty(node, value, property, collections, range = []) {
-  time('Swapping simple')
+  ts('Swapping simple')
   c(`Swapping simple property: ${property}`)
   c(`Current value:`)
   c(value || node[property])
@@ -586,22 +556,18 @@ async function swapSimpleProperty(node, value, property, collections, range = []
     } else
       node.setBoundVariable(property, newVariable)
   }
-  swappingSimpleTime = timeEnd('Swapping simple', false)
+  time.swappingSimpleTime = te('Swapping simple', false)
   return OK
 }
-
-let swappingComplexTime = 0
-let boundingComplexTime = 0
-let layerCount = 0
 
 /**
  * Swap variable of complex property
  * @param {SceneNode} node – node to affect
  * @param property – name of property to swap
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapComplexProperty(node, property: string, collections: Collections) {
-  time('Swapping complex')
+async function swapComplexProperty(node, property: string, collections: CollectionsToSwap) {
+  ts(`Swapping complex`)
   let bindFunction
   c(`Swapping complex property: ${property}`)
 
@@ -633,7 +599,7 @@ async function swapComplexProperty(node, property: string, collections: Collecti
   // Swapping by layers
   const newPropertyLayers = await swapPropertyLayers(node[property], property, collections, bindFunction, node)
   if (newPropertyLayers) node[property] = newPropertyLayers
-  swappingComplexTime += timeEnd('Swapping complex', false)
+  time.swappingComplexTime += te(`Swapping complex`, false)
 }
 
 async function swapPropertyLayers(layers, property, collections, bindFunction, node, style?) {
@@ -653,57 +619,57 @@ async function swapPropertyLayers(layers, property, collections, bindFunction, n
   }
   else {
     c(`No inner styles`)
-  return await Promise.all(
-    layers.map(async (layer) => {
-      layerCount++
-      c(`Current layer ↴`)
-      c(layer)
+    return await Promise.all(
+      layers.map(async (layer) => {
+        time.layerCount++
+        c(`Current layer ↴`)
+        c(layer)
 
-      if ('gradientStops' in layer) {
-        c('Got gradient ↴')
-        c(layer.gradientStops)
-        const newLayer = JSON.parse(JSON.stringify(layer)) as GradientPaint
-        for (const gradientStop of newLayer.gradientStops) {
-          // Does this stop has some bound variables?
-          if (!('color' in gradientStop.boundVariables))
-            continue
+        if ('gradientStops' in layer) {
+          c('Got gradient ↴')
+          c(layer.gradientStops)
+          const newLayer = JSON.parse(JSON.stringify(layer)) as GradientPaint
+          for (const gradientStop of newLayer.gradientStops) {
+            // Does this stop has some bound variables?
+            if (!('color' in gradientStop.boundVariables))
+              continue
 
-          const newVariable = await getNewVariable(gradientStop.boundVariables.color, collections, node, null, 'gradient')
-          if (newVariable) gradientStop.boundVariables.color = v.createVariableAlias(newVariable)
-          c('New stop ↴')
-          c(gradientStop)
+            const newVariable = await getNewVariable(gradientStop.boundVariables.color, collections, node, null, 'gradient')
+            if (newVariable) gradientStop.boundVariables.color = v.createVariableAlias(newVariable)
+            c('New stop ↴')
+            c(gradientStop)
+          }
+          c('New layer ↴')
+          c(newLayer)
+
+          return newLayer || layer
         }
-        c('New layer ↴')
-        c(newLayer)
+        if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
+          return layer
 
-        return newLayer || layer
-      }
-      if (!('boundVariables' in layer) || Object.entries(layer.boundVariables).length === 0)
+        c(`Found ${Object.entries(layer.boundVariables).length} variables`)
+        for (const [field, variable] of Object.entries(layer.boundVariables)) {
+          const newVariable = await getNewVariable(variable, collections, node, style, field)
+          if (newVariable) {
+            c('found new variable')
+            ts('Bounding complex')
+            layer = bindFunction(layer, field, newVariable)
+            time.boundingComplexTime += te('Bounding complex', false)
+          }
+        }
         return layer
-
-      c(`Found ${Object.entries(layer.boundVariables).length} variables`)
-      for (const [field, variable] of Object.entries(layer.boundVariables)) {
-        const newVariable = await getNewVariable(variable, collections, node, style, field)
-        if (newVariable) {
-          c('found new variable')
-          time('Bounding complex')
-          layer = bindFunction(layer, field, newVariable)
-          boundingComplexTime += timeEnd('Bounding complex', false)
-        }
-      }
-      return layer
-    })
-  )
-}
+      })
+    )
+  }
 }
 
 /**
  * Swap variable of instance variant property
  * @param {SceneNode} node – node to affect
  * @param value – current value
- * @param {Collections} collections — object containing source and destination collections
+ * @param {CollectionsToSwap} collections — object containing source and destination collections
  */
-async function swapComponentProperty(node, value, collections: Collections) {
+async function swapComponentProperty(node, value, collections: CollectionsToSwap) {
   for (const [propertyName, variable] of Object.entries(value)) {
     c(`Property ↴`)
     c(propertyName)
@@ -726,7 +692,7 @@ async function swapComponentProperty(node, value, collections: Collections) {
 }
 
 
-async function getNewVariable(variable, collections: Collections, node, style?, property?) {
+async function getNewVariable(variable, collections: CollectionsToSwap, node, style?, property?) {
   const variableObject = await v.getVariableByIdAsync(variable.id)
   c(`Source variable ↴`)
   c(variableObject)
@@ -747,7 +713,7 @@ async function getNewVariable(variable, collections: Collections, node, style?, 
   let newVariable
   try {
     newVariable = await findVariable(collections.to, variableObject)
-    count++
+    state.variablesProcessed++
   }
   catch {
     let value = node ?
@@ -762,159 +728,68 @@ async function getNewVariable(variable, collections: Collections, node, style?, 
   return newVariable || variableObject
 }
 
-let findingTime = 0
-async function findVariable(collection, variable) {
-  time('Finding')
+
+/**
+ * Finds a variable within a given collection.
+ *
+ * @param {Collection} collection - The collection to search within.
+ * @param {Variable} variable - The variable to find.
+ * @returns {Promise<Variable>} - A promise that resolves to the found variable.
+ */
+async function findVariable(collection: Collection, variable: Variable): Promise<Variable> {
+  ts('Finding')
   const name = variable.name
   c(`Destination is local: ${collection.local}`)
 
-  const newVariable = collection.local === true ?
-    toVariables.find(el => el.name === name) as Variable :
-    await v.importVariableByKeyAsync(toVariables.find(el => el.name === name).key) as Variable
+  let newVariable: Variable
+  if (useMap) {
+    newVariable = collection.local === true ?
+      state.toVariablesMap.get(name) as Variable :
+      await v.importVariableByKeyAsync(state.toVariablesMap.get(name).key)
+  } else {
+    newVariable = collection.local === true ?
+      state.toVariables.find(el => el.name === name) :
+      await v.importVariableByKeyAsync(state.toVariables.find(el => el.name === name).key)
+
+  }
 
   c(`Found new ${newVariable.name} with id ${newVariable.id} ↴`)
   c(newVariable)
-  findingTime += timeEnd('Finding', false)
+  time.findingTime += te('Finding', false)
   return newVariable
 }
 
-export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported' | 'noVariable', options) {
-  gotErrors = true
-  c(`Encountered error: ${type} ↴`)
-  c(options)
-  if (!errors[type])
-    errors[type] = new Array()
 
-  // Exceptions (don't write same errors)
-  switch (type) {
-    case 'noMatch':
-      if (errors[type].findIndex(el => el.name === options.name) >= 0)
-        return
-      break
-    case 'mixed':
-      if (errors[type].findIndex(el => el.nodeId === options.nodeId) >= 0)
-        return
-      break
-    case 'badProp':
-      if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.property === options.property) >= 0)
-        return
-      break
-    case 'unsupported':
-      if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.property === options.property) >= 0)
-        return
-      break
-    case 'noVariable':
-      if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.variableId === options.variableId) >= 0)
-        return
-      break
-  }
-  errors[type].push(options)
-  c(`Can't swap ${type === 'noMatch' ? `variable ${options.name} for ` : `${options.property} of ${options.nodeName}`}: ${type}`, 'error')
-}
-
-async function loadFont(font: FontName, loadedFonts: FontName[]) {
-  if (loadedFonts.includes(font))
-    return
-
-  await figma.loadFontAsync(font)
-  loadedFonts.push(font)
-}
-
-async function loadFontsByFamily(fontFamily: string, loadedFontFamilies: string[], availableFonts: Font[]) {
-  if (loadedFontFamilies.includes(fontFamily))
-    return
-
-  const fonts = availableFonts.filter(font => font.fontName.family === fontFamily)
-  for (const font of fonts) {
-    await figma.loadFontAsync(font.fontName)
-  }
-  loadedFontFamilies.push(fontFamily)
-}
 
 // Ending the work
 function finish(newCollection = null, message?: string) {
-  // showTimers()
+  showTimers()
   // Killing work notification
   stopProgressNotification()
 
   // Sending finish message
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
-  const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 
-  c(`Count: ${count}`)
+  showFinishNotification(message)
+  c(`Count: ${state.variablesProcessed}`)
   // Expanding to show some errors
-  if (errorCount > 0)
+  if (errorCount > 0) {
     figma.ui.resize(uiSize.width, uiSize.height + 60)
+    console.error(errors)
+  }
   else
     figma.ui.resize(uiSize.width, uiSize.height)
+  te('Whole swap')
 
-  working = false
-  if (message)
-    notify(message)
-  else if (count > 0) {
-    const actionMsg = `${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${count} propert${(count === 1 ? "y" : "ies")} of ${nodesProcessed} node${(nodesProcessed === 1 ? "." : "s.")}`
-    const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
-    notify(`${actionMsg} ${errorMsg}`)
-  }
-  else {
-    const idleMsg = `${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${nodesProcessed} node${(nodesProcessed === 1 ? "." : "s.")}`
-    const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
-    notify(`${idleMsg} ${errorMsg}`)
-  }
-  if (gotErrors) console.error(errors)
-}
-
-// Show new notification
-function notify(text: string, options: NotificationOptions = {}, clearProgress = true) {
-  if (clearProgress) {
-    stopProgressNotification()
-  }
-  if (notification != null) {
-    notification.cancel()
-  }
-  notification = figma.notify(text, options)
 }
 
 // Showing interruption notification
 function cancel() {
-  if (notification != null)
-    notification.cancel()
+  clearNotifications()
   stopProgressNotification()
-  if (working) {
-    // notify("Plugin work have been interrupted")
-  }
-  finish(collections.to || null,)
-
+  finish(state.collectionsToSwap.to || null,)
 }
 
-function showTimers() {
-  c(`⏱️ Swapping simple: ${swappingSimpleTime} `)
-  c(`⏱️ Bounding complex: ${boundingComplexTime} `)
-  c(`Time per layer: ${Math.round(boundingComplexTime / layerCount)} `)
-  c(`⏱️ Swapping complex: ${swappingComplexTime} `)
-  c(`Time per layer: ${Math.round(swappingComplexTime / layerCount)} `)
-  c(`⏱️ Finding: ${findingTime} `)
-  c(`Time per variable: ${Math.round(findingTime / count)} `)
-  swappingSimpleTime = 0
-  swappingComplexTime = 0
-  boundingComplexTime = 0
-  findingTime = 0
-  layerCount = 0
-}
-
-function time(str) {
-  if (!TIMERS) return
-
-  const time = Date.now()
-  times.set(str, time)
-  return time
-}
-
-function timeEnd(str, show = TIMERS) {
-  if (!TIMERS) return
-
-  const time = Date.now() - times.get(str)
-  if (show) console.log(`⏱️ ${str}: ${time} ms`)
-  times.delete(str)
-  return time
+function stub(...args) {
+  return 0
 }
