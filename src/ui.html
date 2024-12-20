@@ -25,10 +25,12 @@
 
     :root.figma-light {
         --vk-color-accent-themed: #4586e4;
+        --vk-color-accent-themed-darked: color-mix(in hsl, var(--vk-color-accent-themed) 100%, var(--figma-color-bg) 15%);
     }
 
     :root.figma-dark {
         --vk-color-accent-themed: #ffffff;
+        --vk-color-accent-themed-darked: color-mix(in hsl, var(--vk-color-accent-themed) 100%, var(--figma-color-bg) 15%);
     }
 
 
@@ -115,6 +117,7 @@
         padding: 0.75rem 2rem 0.75rem 1rem;
         border: none;
         border-radius: var(--radius-m);
+        color: inherit;
         background: none;
     }
 
@@ -258,13 +261,17 @@
         gap: 0.5rem;
         width: 100%;
         background: var(--vk-color-accent-themed);
+        transition: background-color var(--transition-rule);
         color: var(--figma-color-bg-secondary);
         opacity: 1;
     }
 
     button.primary .loader {
+        color: var(--figma-color-icon-oninverse);
         display: none;
         height: 1rem;
+        animation: spin 1s linear infinite;
+        transform: scaleX(-1);
     }
 
     button.primary .loader.show {
@@ -272,7 +279,15 @@
     }
 
     button.primary:disabled {
-        animation: loading 1000ms ease-in-out 0 infinite alternate;
+        pointer-events: none;
+        background-color: var(--vk-color-accent-themed-darked);
+        animation: loading 1ms ease-in-out 0 infinite alternate;
+    }
+
+    @keyframes spin {
+        to {
+            transform: scaleX(-1) rotate(-360deg);
+        }
     }
 
     @keyframes loading {
@@ -473,16 +488,15 @@
             <button type="submit" class="primary"><span>Swap Variables</span>
                 <svg class="loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
                     <radialGradient id="a4" cx=".66" fx=".66" cy=".3125" fy=".3125" gradientTransform="scale(1.5)">
-                        <stop offset="0" stop-color="#FFFFFF"></stop>
-                        <stop offset=".3" stop-color="#FFFFFF" stop-opacity=".9"></stop>
-                        <stop offset=".6" stop-color="#FFFFFF" stop-opacity=".6"></stop>
-                        <stop offset=".8" stop-color="#FFFFFF" stop-opacity=".3"></stop>
-                        <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"></stop>
+                        <stop offset="0" stop-color="currentColor"></stop>
+                        <stop offset=".3" stop-color="currentColor" stop-opacity=".9"></stop>
+                        <stop offset=".6" stop-color="currentColor" stop-opacity=".6"></stop>
+                        <stop offset=".8" stop-color="currentColor" stop-opacity=".3"></stop>
+                        <stop offset="1" stop-color="currentColor" stop-opacity="0"></stop>
                     </radialGradient>
                     <circle transform-origin="center" fill="none" stroke="url(#a4)" stroke-width="30" stroke-linecap="round" stroke-dasharray="200 1000" stroke-dashoffset="0" cx="100" cy="100" r="70">
-                        <animateTransform type="rotate" attributeName="transform" calcMode="spline" dur="2" values="360;0" keyTimes="0;1" keySplines="0 0 1 1" repeatCount="indefinite"></animateTransform>
                     </circle>
-                    <circle transform-origin="center" fill="none" opacity=".2" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" cx="100" cy="100" r="70"></circle>
+                    <circle transform-origin="center" fill="none" opacity=".2" stroke="currentColor" stroke-width="30" stroke-linecap="round" cx="100" cy="100" r="70"></circle>
                 </svg></button>
         </div>
         <!-- <a target="_top" class="feedback" href="mailto:nikita.denisov@vk.team?subject=Swap%20Variables">Send feedback</a> -->
