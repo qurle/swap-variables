@@ -7,8 +7,6 @@ const progressBar = {
     empty: `░`
 }
 
-let mainThreadInterval: number
-
 // Got it from here https://www.figma.com/plugin-docs/api/properties/nodes-findall/
 const typesWithChildren: NodeType[] = ['BOOLEAN_OPERATION', 'COMPONENT', 'COMPONENT_SET', 'FRAME', 'GROUP', 'INSTANCE', 'PAGE', 'SECTION']
 
@@ -39,7 +37,7 @@ export function generateDetailedProgress(percent) {
 }
 
 // Let figma ui thread to take a little breath
-export async function wakeUpMainThread(msg = '') {
+export async function wakeUpMainThread() {
     return await new Promise((resolve) => {
         setTimeout(resolve, 0)
     })

@@ -743,14 +743,9 @@ async function findVariable(collection: Collection, variable: Variable): Promise
 
   let newVariable: Variable
   if (useMap) {
-    newVariable = collection.local === true ?
-      state.toVariablesMap.get(name) as Variable :
-      await v.importVariableByKeyAsync(state.toVariablesMap.get(name).key)
+    newVariable = state.toVariablesMap.get(name)
   } else {
-    newVariable = collection.local === true ?
-      state.toVariables.find(el => el.name === name) :
-      await v.importVariableByKeyAsync(state.toVariables.find(el => el.name === name).key)
-
+    newVariable = state.toVariables.find(el => el.name === name)
   }
 
   c(`Found new ${newVariable.name} with id ${newVariable.id} ↴`)
