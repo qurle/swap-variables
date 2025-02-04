@@ -89,10 +89,11 @@ export function showFinishNotification(customMessage?: string) {
 
 	const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 	const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
+	const entities = `${state.currentScope === 'styles' ? 'style' : 'node'}${(state.nodesProcessed === 1 ? "." : "s.")}`
 
 	let msg = state.variablesProcessed === 0 ?
-		`${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${state.nodesProcessed} node${(state.nodesProcessed === 1 ? "." : "s.")}` :
-		`${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${state.variablesProcessed} propert${(state.variablesProcessed === 1 ? "y" : "ies")} of ${state.nodesProcessed} node${(state.nodesProcessed === 1 ? "." : "s.")}`
+		`${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${state.nodesProcessed} ${entities}` :
+		`${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${state.variablesProcessed} propert${(state.variablesProcessed === 1 ? "y" : "ies")} of ${state.nodesProcessed} ${entities}`
 
 	notify(`${msg} ${errorMsg}`)
 }

@@ -55,6 +55,11 @@ export interface Errors {
         nodeName: string,
         nodeId: string
     }[],
+    badFont: {
+        name: string,
+        nodeName: string,
+        nodeId: string
+    }[]
 }
 
 export interface ProgressOptions {

@@ -382,7 +382,7 @@ async function swapTextNode(node: TextNode, collections: CollectionsToSwap) {
         return 'badProp'
       }
       await Promise.all(
-        node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName))
+        node.getRangeAllFontNames(0, node.characters.length).map(async (fontName) => await loadFont(fontName, { name: node.name, id: node.id }))
       )
     }
     ta(`loadingFonts`)
@@ -508,8 +508,9 @@ async function swapStyles(collections: CollectionsToSwap) {
       if (style.boundVariables && Object.entries(style.boundVariables).length > 0) {
         c(`Swapping`)
         style[reference.layersName] = await swapPropertyLayers(style[reference.layersName], reference.layersName, collections, reference.bindFunction, null, style)
-        state.nodesProcessed++
+        state.variablesProcessed++
       }
+      state.nodesProcessed++
     }
   }
   setNodesToUnfreeze(state.nodesAmount * unfreezePercentage)
@@ -518,9 +519,11 @@ async function swapStyles(collections: CollectionsToSwap) {
   // Text doesn't contain any layers so logic differs here
   const textStyles = await figma.getLocalTextStylesAsync()
   for (const style of textStyles) {
+    c(`Got style ${style.name}`)
     c(`Bound variables ↴`)
     c(style.boundVariables)
-    await loadFont(style.fontName)
+    await loadFont(style.fontName, { name: style.name, id: style.id })
+
     for (const [field, variable] of Object.entries(style.boundVariables)) {
       c(`Setting field ${field}`)
       c(`Current variable ↴`)
@@ -530,7 +533,7 @@ async function swapStyles(collections: CollectionsToSwap) {
         continue
       if (field === 'fontFamily') {
         for (const family of Object.values(newVariable.valuesByMode)) {
-          await loadFontsByFamily(family as string, state.availableFonts)
+          await loadFontsByFamily(family as string, state.availableFonts, { name: style.name, id: style.id })
         }
       }
       //@ts-ignore

@@ -9,10 +9,13 @@ export const errors = {
 	mixed: [],
 	badProp: [],
 	unsupported: [],
-	noVariable: []
+	noVariable: [],
+	badFont: [],
 } as Errors
 
-export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported' | 'noVariable', options) {
+type ErrorType = 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'unsupported' | 'noVariable' | 'badFont'
+
+export function error(type: ErrorType, options) {
 	gotErrors = true
 	c(`Encountered error: ${type} ↴`)
 	c(options)
@@ -31,6 +34,10 @@ export function error(type: 'limitation' | 'noMatch' | 'mixed' | 'badProp' | 'un
 			break
 		case 'badProp':
 			if (errors[type].findIndex(el => el.nodeId === options.nodeId && el.property === options.property) >= 0)
+				return
+			break
+		case 'badFont':
+			if (errors[type].findIndex(el => el.name === options.name) >= 0)
 				return
 			break
 		case 'unsupported':
