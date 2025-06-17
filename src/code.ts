@@ -1,7 +1,7 @@
 // Disclamer: I am not a programmer. Read at yor risk
 
 import { cloneVariables } from './clone'
-import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, uiSize, unfreezePercentage, useMap } from './config'
+import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, unfreezePercentage, useMap } from './config'
 import { clearErrors, error, errorCount, errors } from './errors'
 import { loadFont, loadFontsByFamily } from './fonts'
 import { clearNotifications, initProgressNotification, notify, showFinishNotification, stopProgressNotification } from './notifications'
@@ -10,7 +10,6 @@ import { clearTimers, showTimers, timeAdd as ta, timeEnd as te, time, timeStart 
 import { Collection, CollectionsToSwap, ProgressOptions, Scope } from './types'
 import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, wakeUpMainThread } from './utils'
 
-
 // Idk why I made this
 const OK = -1
 
@@ -18,18 +17,40 @@ const OK = -1
 const v = figma.variables
 const tl = figma.teamLibrary
 
+// Storing window size
+const ui = {
+  width: 300,
+  height: 316,
+  defWidth: 300,
+  defHeight: 316,
+  minWidth: 280,
+  minHeight: 160,
+  resized: false
+}
+
+// Strings for client storage
+const storage = {
+  uiWidth: 'uiWidth',
+  uiHeight: 'uiHeight',
+  lastLaunch: 'lastLaunch',
+  scope: 'scope',
+  resized: 'resized'
+}
+
 ts('Cold start')
 // Cancel on page change
 figma.on("currentpagechange", cancel)
+// Save last launch date on close
+figma.on("close", close)
 
-// Connect with UI
-figma.showUI(__html__, { themeColors: true, width: uiSize.width, height: uiSize.height, })
+
 
 // Engine start
 run()
 
 async function run() {
-  const scope = await figma.clientStorage.getAsync('scope')
+  await setUI()
+  const scope = await figma.clientStorage.getAsync(storage.scope)
   figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
   state.collectionList = await getCollections()
 
@@ -65,7 +86,7 @@ figma.ui.onmessage = async (msg) => {
       c(`Scope of swapping ↴`)
       c(state.currentScope)
 
-      figma.clientStorage.setAsync('scope', state.currentScope)
+      figma.clientStorage.setAsync(storage.scope, state.currentScope)
 
       // Cloning variables
       if (newCollection) {
@@ -75,12 +96,14 @@ figma.ui.onmessage = async (msg) => {
         c(`Cloned variables`)
       }
 
-      figma.ui.resize(uiSize.width, uiSize.height)
+      if (!ui.resized)
+        figma.ui.resize(ui.width, ui.height)
 
       const message = await startSwap(state.collectionsToSwap, state.currentScope)
       finish(newCollection ? state.collectionsToSwap.to : null, message)
       break
 
+    // Going to node (from errors)
     case 'goToNode': {
       if (state.currentScope === 'styles') {
         notify(`Error in ${(await figma.getStyleByIdAsync(msg.message.nodeId)).name} style`)
@@ -98,7 +121,46 @@ figma.ui.onmessage = async (msg) => {
       notify(`Going to ${node.name}`)
       break
     }
+
+    // Resizing event
+    case 'resize': {
+      ui.width = Math.max(ui.minWidth, +msg.message.width)
+      ui.height = Math.max(ui.minHeight, +msg.message.height)
+
+      figma.ui.resize(ui.width, ui.height)
+      ui.resized = true
+      break
+    }
+
+    // Save state of resized width to client storage
+    case 'saveSize': {
+      figma.clientStorage.setAsync(storage.uiWidth, msg.message.width)
+      figma.clientStorage.setAsync(storage.uiHeight, msg.message.height)
+      figma.clientStorage.setAsync(storage.resized, true)
+      break
+    }
+
+    // Back to default size event
+    case 'defaultSize': {
+      ui.width = ui.defWidth
+      ui.height = ui.defHeight
+      figma.ui.resize(ui.width, ui.height)
+      ui.resized = false
+      break
+    }
   }
+}
+
+async function setUI() {
+  ts('Setting UI')
+  const lastLaunch = await figma.clientStorage.getAsync(storage.lastLaunch)
+  if (Date.now() - lastLaunch < (1000 * 60 * 60 * 2)) {
+    ui.width = Number(await figma.clientStorage.getAsync(storage.uiWidth)) || ui.defWidth
+    ui.height = Number(await figma.clientStorage.getAsync(storage.uiHeight)) || ui.defHeight
+    ui.resized = Boolean(await figma.clientStorage.getAsync(storage.resized)) || false
+  }
+  figma.showUI(__html__, { themeColors: true, width: ui.width, height: ui.height, })
+  te('Setting UI')
 }
 
 /**
@@ -172,7 +234,7 @@ async function startSwap(collections: CollectionsToSwap, scope: Scope) {
 
   // Get variables based on local or external collection
   const toVariables = collections.to.local === true ?
-  // Just cherry-picking local variables
+    // Just cherry-picking local variables
     (await v.getLocalVariablesAsync()).filter(el => el.variableCollectionId === collections.to.id) :
     // Resolving external variables by key
     await Promise.all((await tl.getVariablesInLibraryCollectionAsync(collections.to.key)).map(async variable => await v.importVariableByKeyAsync(variable.key)))
@@ -248,8 +310,8 @@ async function swapNodes(collections: CollectionsToSwap, nodes, first = false, p
     if (progressOptions.scope !== 'styles') {
       // If styles, set this later
       state.nodesAmount = countChildren(nodes)
-      console.log(state.nodesAmount)
-      console.log(`Unfreeze nodes rate: ${state.nodesAmount * unfreezePercentage}`)
+      c(state.nodesAmount)
+      c(`Unfreeze nodes rate: ${state.nodesAmount * unfreezePercentage}`)
       setNodesToUnfreeze(state.nodesAmount * unfreezePercentage)
     }
     initProgressNotification(nodes, progressOptions)
@@ -781,14 +843,16 @@ function finish(newCollection = null, message?: string) {
   figma.ui.postMessage({ type: 'finish', message: { errors: errors, newCollection: newCollection } })
 
   showFinishNotification(message)
+
   c(`Count: ${state.variablesProcessed}`)
   // Expanding to show some errors
   if (errorCount > 0) {
-    figma.ui.resize(uiSize.width, uiSize.height + 60)
+    if (!ui.resized)
+      figma.ui.resize(ui.width, ui.height + 60)
     console.error(errors)
   }
-  else
-    figma.ui.resize(uiSize.width, uiSize.height)
+  else if (!ui.resized)
+    figma.ui.resize(ui.width, ui.height)
   te('Whole swap')
 
 }
@@ -798,6 +862,12 @@ function cancel() {
   clearNotifications()
   stopProgressNotification()
   finish(state.collectionsToSwap.to || null,)
+}
+
+function close() {
+  clearNotifications()
+  // Saving the date of last launch
+  figma.clientStorage.setAsync(storage.lastLaunch, Date.now())
 }
 
 function stub(...args) {
