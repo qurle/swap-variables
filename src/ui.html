@@ -535,7 +535,7 @@
     const reverse = form.querySelector('button.reverse')
     const errorsEl = document.querySelector('.errors')
     const heading = errorsEl.querySelector('h2')
-                        const submitText = form.querySelector('button[type=submit] span')
+    const submitText = form.querySelector('button[type=submit] span')
     const submit = form.querySelector('button[type=submit]')
     const loader = document.querySelector('.loader')
 
@@ -637,7 +637,7 @@
             optgroup.label = lib
             for (const collection of collections) {
                 const option = document.createElement('option')
-                option.textContent = `${lib.slice(0, 8)}... > ${collection.name}`
+                option.textContent = `${[...lib].slice(0, 7).join('')}... > ${collection.name}`
                 option.dataset.lib = lib
                 option.dataset.name = collection.name
                 option.dataset.key = collection.key
@@ -670,7 +670,7 @@
         console.timeEnd('Filling libs')
     }
 
-                function defineScope(scope) {
+    function defineScope(scope) {
         if (['selection', 'thisPage', 'allPages', 'styles'].includes(scope))
             scopeSelect.querySelector(`input[value=${scope}]`).checked = true
     }
