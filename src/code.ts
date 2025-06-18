@@ -1,7 +1,7 @@
 // Disclamer: I am not a programmer. Read at yor risk
 
 import { cloneVariables } from './clone'
-import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, unfreezePercentage, useMap } from './config'
+import { affectingInitFont, complexProperties, mixedProperties, rCollectionId, typographyProperties, unfreezePercentage, useMap } from './config'
 import { clearErrors, error, errorCount, errors } from './errors'
 import { loadFont, loadFontsByFamily } from './fonts'
 import { clearNotifications, initProgressNotification, notify, showFinishNotification, stopProgressNotification } from './notifications'
@@ -41,7 +41,7 @@ ts('Cold start')
 // Cancel on page change
 figma.on("currentpagechange", cancel)
 // Save last launch date on close
-figma.on("close", close)
+figma.on("close", async () => { await close() })
 
 
 
@@ -124,8 +124,8 @@ figma.ui.onmessage = async (msg) => {
 
     // Resizing event
     case 'resize': {
-      ui.width = Math.max(ui.minWidth, +msg.message.width)
-      ui.height = Math.max(ui.minHeight, +msg.message.height)
+      ui.width = Math.max(ui.minWidth, Number(msg.message.width))
+      ui.height = Math.max(ui.minHeight, Number(msg.message.height))
 
       figma.ui.resize(ui.width, ui.height)
       ui.resized = true
@@ -134,14 +134,15 @@ figma.ui.onmessage = async (msg) => {
 
     // Save state of resized width to client storage
     case 'saveSize': {
-      figma.clientStorage.setAsync(storage.uiWidth, msg.message.width)
-      figma.clientStorage.setAsync(storage.uiHeight, msg.message.height)
-      figma.clientStorage.setAsync(storage.resized, true)
+      saveSize(msg.message.width, msg.message.height, true)
+      console.log('saving')
       break
     }
 
     // Back to default size event
     case 'defaultSize': {
+      saveSize(ui.defWidth, ui.defHeight, false)
+
       ui.width = ui.defWidth
       ui.height = ui.defHeight
       figma.ui.resize(ui.width, ui.height)
@@ -480,29 +481,43 @@ async function swapTextNode(node: TextNode, collections: CollectionsToSwap) {
 
 
     // Props that can be mixed
-    // Also my formatting is broken
     ts('textSwappingMixed')
     c(`Mixed segments  ↴`)
-    c(node.getStyledTextSegments(['boundVariables', 'fills']))
+    c(node.getStyledTextSegments(['boundVariables', 'fills', 'textStyleId', 'fillStyleId']))
+
     // Have no clue why fills aren't in bound variables. They surely should be
-    for (const segment of node.getStyledTextSegments(['boundVariables', 'fills'])) {
+    for (const segment of node.getStyledTextSegments(['boundVariables', 'fills', 'textStyleId', 'fillStyleId'])) {
       c(`Current segment ↴`)
       c(segment)
+      c('Segment bound variables ↴')
+      c(segment.boundVariables)
+
+      // Saving it to avoid unnecessary rechecks for every typo property
+      let segmentHasTextStyle: boolean = undefined
+
       // Fills are not here!
       for (const [property, value] of Object.entries(segment.boundVariables)) {
-        c(`Swapping ranged property ${property} of ${node.name}`)
-        c(`Value ↴`)
-        c(value)
-        ts('textSwappingMixedSimple')
-        // if (complexProperties.includes(property)) { }
-        await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
-        ta('textSwappingMixedSimple')
+        // Checking styles once per segment
+        if (segmentHasTextStyle === undefined)
+          segmentHasTextStyle = typographyProperties.includes(property) && segmentHasStyles(node, segment, 'typography')
+
+        c(`Segment has text style: ${segmentHasTextStyle}`)
+        if (!segmentHasTextStyle) {
+          c(`Swapping ranged property ${property} of ${node.name}`)
+          c(`Value ↴`)
+          c(value)
+          ts('textSwappingMixedSimple')
+          // if (complexProperties.includes(property)) { }
+          await swapSimpleProperty(node, value, property, collections, [segment.start, segment.end])
+          ta('textSwappingMixedSimple')
+        }
       }
       // Fills are here!
       if ('fills' in segment) {
         ts('textSwappingMixedFills')
         c(`Swapping ranged fills`)
-        if (!segmentHasStyles(node, segment, 'textRangeFills')) {
+        // We check it only once so no needs to store function value
+        if (!segmentHasStyles(node, segment, 'fills')) {
           c(`No styles here`)
           c(segment.fills)
           const newPropertyLayers = await swapPropertyLayers(segment.fills, 'fills', collections, v.setBoundVariableForPaint, node)
@@ -519,19 +534,23 @@ async function swapTextNode(node: TextNode, collections: CollectionsToSwap) {
   }
 }
 
-function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'textRangeFills' | 'fills' | 'textRangeStrokes' | 'strokes' | 'fontFamily' | 'fontWeight' | 'fontSize') {
+function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'fills' | 'typography') {
   // Yes I ✨architectured✨ one-case switch so what
   ts('textFindingStyleSegment')
   switch (type) {
-    case 'textRangeFills':
     case 'fills':
-      c(`Style from ${segment.start} to ${segment.end}: ${String(node.getRangeFillStyleId(segment.start, segment.end)) || 'Not found'}`)
-      c(`Returning ${node.getRangeFillStyleId(segment.start, segment.end) !== ''}`)
+      c(`Fill style from ${segment.start} to ${segment.end}: ${String(node.getRangeFillStyleId(segment.start, segment.end)) || 'Not found'}`)
       ta('textFindingStyleSegment')
+
       return node.getRangeFillStyleId(segment.start, segment.end) !== ''
+    case 'typography':
+      c(`Typo style from ${segment.start} to ${segment.end}: ${String(node.getRangeTextStyleId(segment.start, segment.end)) || 'Not found'}`)
+      ta('textFindingStyleSegment')
+      return node.getRangeTextStyleId(segment.start, segment.end) !== ''
     default:
       return false
   }
+
 }
 
 /**
@@ -831,6 +850,12 @@ async function findVariable(collection: Collection, variable: Variable): Promise
   return newVariable
 }
 
+async function saveSize(width, height, resized = true) {
+  figma.clientStorage.setAsync(storage.uiWidth, width)
+  figma.clientStorage.setAsync(storage.uiHeight, height)
+  figma.clientStorage.setAsync(storage.resized, resized)
+}
+
 
 
 // Ending the work
@@ -864,10 +889,10 @@ function cancel() {
   finish(state.collectionsToSwap.to || null,)
 }
 
-function close() {
+async function close() {
   clearNotifications()
   // Saving the date of last launch
-  figma.clientStorage.setAsync(storage.lastLaunch, Date.now())
+  await figma.clientStorage.setAsync(storage.lastLaunch, Date.now())
 }
 
 function stub(...args) {
