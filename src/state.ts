@@ -13,6 +13,7 @@ export const state = {
 	currentScope: null as Scope,
 	availableFonts: [] as Font[],
 	showMainThread: false,
+	detachStyles: false,
 }
 
 export function clearCounters() {

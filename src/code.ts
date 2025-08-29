@@ -87,6 +87,11 @@ figma.ui.onmessage = async (msg) => {
       c(`Scope of swapping ↴`)
       c(state.currentScope)
 
+      // state.detachStyles = msg.message.detachStyles
+      // c(`Should detach styles`)
+      // c(state.currentScope)
+
+
       figma.clientStorage.setAsync(storage.scope, state.currentScope)
 
       // Cloning variables
@@ -536,7 +541,6 @@ async function swapTextNode(node: TextNode, collections: CollectionsToSwap) {
 }
 
 function segmentHasStyles(node: TextNode, segment: Pick<StyledTextSegment, "fills" | "characters" | "start" | "end">, type: 'fills' | 'typography') {
-  // Yes I ✨architectured✨ one-case switch so what
   ts('textFindingStyleSegment')
   switch (type) {
     case 'fills':
@@ -699,9 +703,7 @@ async function swapComplexProperty(node, property: string, collections: Collecti
 
 async function swapPropertyLayers(layers, property, collections, bindFunction, node, style?) {
   c(`Swapping layers of ${property}`)
-  c(`Style ↴`)
-  c(style)
-  c(style === undefined)
+  c(`Swapping style: ${style}`)
   // Unaffect styles (otherwise they'll be detached)
   if (style === undefined && (
     (property === 'fills' && node.fillStyleId && node.fillStyleId.toString() !== `Symbol(figma.mixed)`) ||
@@ -709,7 +711,6 @@ async function swapPropertyLayers(layers, property, collections, bindFunction, n
     (property === 'grids' && node.gridStyleId && node.gridStyleId.toString() !== `Symbol(figma.mixed)`) ||
     (property === 'strokes' && node.strokeStyleId && node.strokeStyleId.toString() !== `Symbol(figma.mixed)`)
   )) {
-
     return null
   }
   else {

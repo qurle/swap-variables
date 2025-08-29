@@ -64,7 +64,7 @@
 
     .form-item>label {
         display: block;
-        padding: 0 var(--gap-s);
+        padding: 0 var(--gap-xs);
         margin-bottom: var(--gap-s);
         font-size: var(--font-size-s);
         color: var(--figma-color-text-secondary);
@@ -208,6 +208,21 @@
     .segmented input:focus-visible~.tooltip {
         opacity: 1;
         transform: translateY(-100%);
+    }
+
+    .checkbox {
+        display: flex;
+        flex-direction: row;
+
+        gap: var(--gap-s);
+        align-items: center;
+        padding: 0 var(--gap-xs);
+        user-select: none;
+
+        input {
+            color: black;
+            background: black;
+        }
     }
 
     .buttons {
@@ -481,6 +496,10 @@
                 </label>
             </fieldset>
         </div>
+        <!-- <div class="checkbox">
+            <input type="checkbox" id="detachStyles" name="detachStyles" />
+            <label for="detachStyles">Detach styles with variables</label>
+        </div> -->
         <div class="buttons">
             <button title="Reverse collections" class="secondary reverse" type="button">
                 <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -613,6 +632,7 @@
                             local: to.dataset.local === 'true',
                         } : null
                     },
+                    // detachStyles: document.getElementById('detachStyles').checked,
                     scope: scope
                 }
             }
