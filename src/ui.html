@@ -46,24 +46,8 @@
         outline-offset: 2px;
     }
 
-
-    .border-extender {
-        position: relative;
-        height: 1rem;
-        background: var(--figma-color-border);
-    }
-
-    .border-extender>div {
-        position: absolute;
-        height: 0.5rem;
-        width: 100%;
-        border-radius: var(--radius-m) var(--radius-m) 0 0;
-        background: var(--figma-color-bg);
-        bottom: 0;
-    }
-
     .container {
-        height: calc(100%-1rem);
+        height: 100%;
         width: 100%;
         padding: var(--gap-l);
         font-size: var(--font-size-m);
@@ -73,8 +57,8 @@
     form {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: stretch center;
+        justify-content: start;
+        align-items: stretch;
         gap: var(--gap-l);
     }
 
@@ -242,6 +226,8 @@
         background: none;
         border-radius: var(--radius-m);
 
+        user-select: none;
+
         letter-spacing: 0.02;
         transition: background-color var(--transition-rule), transform var(--transition-rule);
     }
@@ -399,10 +385,27 @@
         white-space: nowrap;
         text-overflow: ellipsis;
     }
+
+    .resizer {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        padding: 0.25rem;
+        z-index: 1;
+        cursor: nwse-resize;
+
+        & svg {
+            transition: stroke-width var(--transition-rule);
+            color: var(--figma-color-icon-tertiary);
+
+        }
+    }
+
+    .resizer:hover svg {
+        color: var(--figma-color-icon-secondary);
+        stroke-width: 4px;
+    }
 </style>
-<div class="border-extender">
-    <div></div>
-</div>
 <div class="container">
     <form>
         <div class="form-item">
@@ -525,6 +528,9 @@
             </ul>
         </div>
     </form>
+    <div class="resizer"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5.84701 13.6252C7.71212 13.1254 9.41282 12.1435 10.7782 10.7782C12.1435 9.41282 13.1254 7.71212 13.6252 5.84701" />
+        </svg> </div>
 </div>
 <script>
     console.time('Query selecting')
@@ -538,6 +544,7 @@
     const submitText = form.querySelector('button[type=submit] span')
     const submit = form.querySelector('button[type=submit]')
     const loader = document.querySelector('.loader')
+    const resizer = document.querySelector('.resizer')
 
     const lists = {
         limitation: errorsEl.querySelector('ul.limitation'),
@@ -551,6 +558,7 @@
 
     console.timeEnd('Query selecting')
 
+    initResizer()
 
     window.onmessage = async (event) => {
         const type = event.data.pluginMessage.type
@@ -585,8 +593,6 @@
         const to = selectTo.selectedOptions[0]
 
         const scope = scopeSelect.querySelector('input:checked').value
-        // console.log('Checked scope ↴')
-        // console.log(scopeSelect.querySelector('input:checked'))
 
         parent.postMessage({
             pluginMessage: {
@@ -808,7 +814,6 @@
                     // Add to selection of not
                     listItem.addEventListener('keydown', (event) => {
                         if (event.key === 'Enter' || event.key === 'Space') {
-                            // console.log(`Selected ${error.nodeId}`)
                             selectNode()
                         }
                     })
@@ -828,6 +833,66 @@
             el.querySelectorAll('li').forEach(el => { el.remove() })
         })
         errorsEl.style.display = 'none'
+    }
+
+    function initResizer() {
+        let width = window.innerWidth
+        let height = window.innerHeight
+        let pointerDownCursorPosition = null
+        resizer.addEventListener(
+            'pointerdown',
+            function (event) {
+                pointerDownCursorPosition = {
+                    x: event.offsetX,
+                    y: event.offsetY
+                }
+                resizer.setPointerCapture(event.pointerId)
+            }
+        )
+        resizer.addEventListener(
+            'pointerup',
+            function (event) {
+                pointerDownCursorPosition = null
+                resizer.releasePointerCapture(event.pointerId)
+                parent.postMessage({
+                    pluginMessage: {
+                        type: 'saveSize', message: { width, height }
+                    }
+                }, '*')
+            }
+        )
+        resizer.addEventListener(
+            'pointermove',
+            function (event) {
+
+                if (pointerDownCursorPosition === null) {
+                    return
+                }
+
+                width = Math.round(
+                    event.clientX +
+                    (resizer.offsetWidth - pointerDownCursorPosition.x)
+                )
+                height = Math.round(
+                    event.clientY +
+                    (resizer.offsetHeight - pointerDownCursorPosition.y)
+                )
+
+                parent.postMessage({
+                    pluginMessage: {
+                        type: 'resize', message: { width, height }
+                    }
+                }, '*')
+            }
+        )
+        resizer.addEventListener('dblclick', function () {
+            parent.postMessage({
+                pluginMessage: {
+                    type: 'defaultSize'
+                }
+            }, '*')
+        })
+
     }
 
     Object.prototype.groupBy = (arr, callback) => {
