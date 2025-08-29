@@ -12,7 +12,6 @@ const progressBar = {
 const typesWithChildren: NodeType[] = ['BOOLEAN_OPERATION', 'COMPONENT', 'COMPONENT_SET', 'FRAME', 'GROUP', 'INSTANCE', 'PAGE', 'SECTION']
 
 
-
 export function getNodesToUnfreeze() {
     return nodesToUnfreeze
 }

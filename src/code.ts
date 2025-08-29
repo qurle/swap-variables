@@ -40,6 +40,7 @@ async function run() {
   currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
   te('Getting current collection')
 
+
   figma.ui.postMessage({ type: 'collections', message: { collections: state.collectionList, current: currentCollectionKey } })
 }
 
@@ -172,7 +173,7 @@ async function startSwap(collections: CollectionsToSwap, scope: Scope) {
 
   // Get variables based on local or external collection
   const toVariables = collections.to.local === true ?
-  // Just cherry-picking local variables
+    // Just cherry-picking local variables
     (await v.getLocalVariablesAsync()).filter(el => el.variableCollectionId === collections.to.id) :
     // Resolving external variables by key
     await Promise.all((await tl.getVariablesInLibraryCollectionAsync(collections.to.key)).map(async variable => await v.importVariableByKeyAsync(variable.key)))
@@ -700,6 +701,10 @@ async function swapComponentProperty(node, value, collections: CollectionsToSwap
       c(`No new variable`)
       continue
     }
+
+    // IDK Figma why I have to detach the variable first
+    node.setProperties({ [propertyName]: node.variantProperties[propertyName] })
+    // And then attach new variable
     node.setProperties({ [propertyName]: v.createVariableAlias(newVariable) })
   }
 }

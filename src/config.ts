@@ -1,5 +1,5 @@
 // Show logs and timers
-export const logs = false
+export const logs = true
 export const timers = false
 export const useMap = true
 
@@ -22,5 +22,5 @@ export const defaultUnfreezeRate = 50
 // Skipping this amount of nodes / styles
 export const minUnfreezeRate = defaultUnfreezeRate
 // Every 500 nodes / styles UI SHOULD unfreeze
-export const maxUnfreezeRate = 500 
+export const maxUnfreezeRate = 500
 
