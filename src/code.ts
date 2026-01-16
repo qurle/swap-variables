@@ -57,7 +57,7 @@ async function run() {
   ts('Getting current collection')
   const selection = figma.currentPage.selection
   const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
-  let currentCollectionKey = nodes[0].getPluginData('currentCollectionKey')
+  let currentCollectionKey = nodes[0]?.getPluginData('currentCollectionKey') || null
   currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
   te('Getting current collection')
 
