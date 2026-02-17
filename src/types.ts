@@ -1,4 +1,4 @@
-export type Scope = 'selection' | 'thisPage' | 'allPages' | 'styles'
+export type Scope = 'selection' | 'thisPage' | 'allPages' | 'styles' | 'aliases'
 
 export interface CollectionsToSwap {
     from: Collection,
@@ -66,4 +66,16 @@ export interface ProgressOptions {
     scope: Scope,
     pageIndex?: number,
     pageAmount?: number,
+}
+
+export interface MessageEntity {
+    application: {
+        single: string,
+        plural: string
+    },
+    preposition: string,
+    object: {
+        single: string,
+        plural: string
+    }
 }

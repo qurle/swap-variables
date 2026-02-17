@@ -1,10 +1,10 @@
 import { error, errors, gotErrors } from './errors';
 import { state } from './state';
 import { time, timeEnd as te, timeStart as ts, timeAdd as ta } from './timers';
-import { ProgressOptions } from './types';
-import { c, countChildren, generateProgress } from './utils';
+import { MessageEntity, ProgressOptions } from './types';
+import { c, countChildren, generateProgress, random } from './utils';
 
-const actionMsgs = ["Swapped variables in", "Affected variables in", "Replaced variables in", "Updated variables in"]
+const actionMsgs = ["Affected", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
 
 let showProgress = true
@@ -14,8 +14,6 @@ let progressNotification: NotificationHandler
 let progressNotificationTimeout: number
 
 export let currentNotification = null as NotificationHandler
-
-
 
 export function notify(text: string, options: NotificationOptions = {}, clearProgress = true) {
 	if (clearProgress) {
@@ -59,6 +57,9 @@ export async function showProgressNotification(progressOptions: ProgressOptions)
 				case 'styles':
 					message = `Processing style ${state.nodesProcessed} of ${state.nodesAmount}  ${generateProgress(Math.round(state.nodesProcessed / state.nodesAmount * 100))}`
 					break
+				case 'aliases':
+					message = `Processing variable ${state.nodesProcessed} of ${state.nodesAmount}  ${generateProgress(Math.round(state.nodesProcessed / state.nodesAmount * 100))}`
+					break
 				default:
 					message = `Processing node ${state.nodesProcessed} of ${state.nodesAmount}  ${generateProgress(Math.round(state.nodesProcessed / state.nodesAmount * 100))}`
 					break
@@ -89,11 +90,54 @@ export function showFinishNotification(customMessage?: string) {
 
 	const errorCount = Object.values(errors).reduce((acc, err) => acc + err.length, 0)
 	const errorMsg = gotErrors ? `Got ${errorCount} error${errorCount === 1 ? "." : "s."} ` : ''
-	const entities = `${state.currentScope === 'styles' ? 'style' : 'node'}${(state.nodesProcessed === 1 ? "." : "s.")}`
+
+	const entity: MessageEntity = (() => {
+		switch (state.currentScope) {
+			case 'styles':
+				return {
+					application: {
+						single: 'property',
+						plural: 'properties'
+					},
+					preposition: 'of',
+					object: {
+						single: 'style',
+						plural: 'styles'
+					},
+				}
+			case 'aliases':
+				return {
+					application: {
+						single: 'link',
+						plural: 'links'
+					},
+					preposition: 'in',
+					object: {
+						single: 'variable',
+						plural: 'variables'
+					},
+				}
+			default:
+				return {
+					application: {
+						single: 'property',
+						plural: 'properties'
+					},
+					preposition: 'of',
+					object: {
+						single: 'layer',
+						plural: 'layers'
+					},
+				}
+		}
+	})()
+
+	const objects = state.nodesProcessed === 1 ? entity.object.single : entity.object.plural
+	const applications = state.variablesProcessed === 1 ? entity.application.single : entity.application.plural
 
 	let msg = state.variablesProcessed === 0 ?
-		`${idleMsgs[Math.floor(Math.random() * idleMsgs.length)]}. Checked ${state.nodesProcessed} ${entities}` :
-		`${actionMsgs[Math.floor(Math.random() * actionMsgs.length)]} ${state.variablesProcessed} propert${(state.variablesProcessed === 1 ? "y" : "ies")} of ${state.nodesProcessed} ${entities}`
+		`${random(idleMsgs)}. Checked ${state.nodesProcessed} ${objects}` :
+		`${random(actionMsgs)} ${state.variablesProcessed} ${applications} ${entity.preposition} ${state.nodesAmount} ${objects}`
 
 	notify(`${msg} ${errorMsg}`)
 }

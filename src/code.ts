@@ -8,7 +8,7 @@ import { clearNotifications, initProgressNotification, notify, showFinishNotific
 import { clearCounters, state } from './state'
 import { clearTimers, showTimers, timeAdd as ta, timeEnd as te, time, timeStart as ts } from './timers'
 import { Collection, CollectionsToSwap, ProgressOptions, Scope } from './types'
-import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, wakeUpMainThread } from './utils'
+import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, throttle, throttle2, wakeUpMainThread } from './utils'
 
 // Idk why I made this
 const OK = -1
@@ -23,6 +23,7 @@ const ui = {
   height: 316,
   defWidth: 300,
   defHeight: 316,
+  defHeightExt: 397,
   minWidth: 280,
   minHeight: 160,
   resized: false
@@ -52,22 +53,40 @@ async function run() {
   await setUI()
   const scope = await figma.clientStorage.getAsync(storage.scope)
   figma.ui.postMessage({ type: 'scope', message: { scope: scope } })
-  state.collectionList = await getCollections()
 
-  ts('Getting current collection')
-  const selection = figma.currentPage.selection
-  const nodes = selection && selection.length > 0 ? selection : figma.currentPage.children
-  let currentCollectionKey = nodes[0]?.getPluginData('currentCollectionKey') || null
-  currentCollectionKey = nodes.every((el) => el.getPluginData('currentCollectionKey') === currentCollectionKey) ? currentCollectionKey : null
-  te('Getting current collection')
+  ts('Getting recent collections')
+  let recentFrom = await figma.clientStorage.getAsync('recentFrom') || null
+  let recentTo = await figma.clientStorage.getAsync('recentTo') || null
+  let recentScope = await figma.clientStorage.getAsync('recentScope') || null
+  let recentSpace = await figma.clientStorage.getAsync('recentSpace') || null
+  te('Getting recent collections')
 
+  const localCollections = await getLocalCollections()
+  figma.ui.postMessage({ type: 'spaces', message: { collections: localCollections, current: recentSpace } })
+  figma.ui.postMessage({ type: 'scope', message: { scope: recentScope } })
+  state.collectionList = await getCollections(localCollections)
 
-  figma.ui.postMessage({ type: 'collections', message: { collections: state.collectionList, current: currentCollectionKey } })
+  figma.ui.postMessage({ type: 'collections', message: { collections: state.collectionList, recentFrom, recentTo } })
 }
 
 // Reactions to UI
 figma.ui.onmessage = async (msg) => {
   switch (msg.type) {
+    // Changing of scope
+    case 'scope':
+      state.currentScope = msg.message.scope
+
+      // Change size as there's new input
+      if (state.currentScope === 'aliases') {
+        ui.height = Math.max(ui.height, ui.defHeightExt)
+      } else ui.height = ui.defHeight
+
+      if (!ui.resized) {
+        figma.ui.resize(ui.width, ui.height)
+      }
+
+      break
+
     // Main action for big blue button
     case 'swap':
       clearErrors()
@@ -78,19 +97,24 @@ figma.ui.onmessage = async (msg) => {
       setNodesToUnfreeze()
 
       state.availableFonts = await figma.listAvailableFontsAsync()
-
       state.collectionsToSwap = msg.message.collections
+      state.currentScope = msg.message.scope
+      state.space = msg.message.space
+
+      const newCollection = state.collectionsToSwap.to === null
+
       c(`Collections to swap ↴`)
       c(state.collectionsToSwap)
-      const newCollection = state.collectionsToSwap.to === null
-      state.currentScope = msg.message.scope
       c(`Scope of swapping ↴`)
       c(state.currentScope)
+      c(`Space of swapping ↴`)
+      c(state.space)
+
+      saveRecents(state.collectionsToSwap)
 
       // state.detachStyles = msg.message.detachStyles
       // c(`Should detach styles`)
       // c(state.currentScope)
-
 
       figma.clientStorage.setAsync(storage.scope, state.currentScope)
 
@@ -105,7 +129,7 @@ figma.ui.onmessage = async (msg) => {
       if (!ui.resized)
         figma.ui.resize(ui.width, ui.height)
 
-      const message = await startSwap(state.collectionsToSwap, state.currentScope)
+      const message = await startSwap(state.collectionsToSwap, state.currentScope, state.space)
       finish(newCollection ? state.collectionsToSwap.to : null, message)
       break
 
@@ -130,8 +154,12 @@ figma.ui.onmessage = async (msg) => {
 
     // Resizing event
     case 'resize': {
+      c('Resizing')
+      c(msg)
       ui.width = Math.max(ui.minWidth, Number(msg.message.width))
       ui.height = Math.max(ui.minHeight, Number(msg.message.height))
+
+      c(ui.height)
 
       figma.ui.resize(ui.width, ui.height)
       ui.resized = true
@@ -147,11 +175,11 @@ figma.ui.onmessage = async (msg) => {
 
     // Back to default size event
     case 'defaultSize': {
-      saveSize(ui.defWidth, ui.defHeight, false)
-
       ui.width = ui.defWidth
-      ui.height = ui.defHeight
+      ui.height = state.currentScope === 'aliases' ? ui.defHeightExt : ui.defHeight
       figma.ui.resize(ui.width, ui.height)
+      saveSize(ui.width, ui.height, false)
+
       ui.resized = false
       break
     }
@@ -162,19 +190,15 @@ async function setUI() {
   ts('Setting UI')
   const lastLaunch = await figma.clientStorage.getAsync(storage.lastLaunch)
   if (Date.now() - lastLaunch < (1000 * 60 * 60 * 2)) {
-    ui.width = Number(await figma.clientStorage.getAsync(storage.uiWidth)) || ui.defWidth
-    ui.height = Number(await figma.clientStorage.getAsync(storage.uiHeight)) || ui.defHeight
+    ui.width = Math.round(await figma.clientStorage.getAsync(storage.uiWidth)) || ui.defWidth
+    ui.height = Math.round(await figma.clientStorage.getAsync(storage.uiHeight)) || ui.defHeight
     ui.resized = Boolean(await figma.clientStorage.getAsync(storage.resized)) || false
   }
   figma.showUI(__html__, { themeColors: true, width: ui.width, height: ui.height, })
   te('Setting UI')
 }
 
-/**
- * Saving local and external collections that have > 0 variables
- * @returns {Promise<Collection[]>} List of available collections
- */
-async function getCollections(): Promise<Collection[]> {
+async function getLocalCollections(): Promise<Collection[]> {
   ts('Getting internal collections')
   const localCollections = (await v.getLocalVariableCollectionsAsync()).filter(el => el.variableIds.length > 0).map(el => ({
     key: el.key,
@@ -187,11 +211,29 @@ async function getCollections(): Promise<Collection[]> {
   c(`Got local collections ↴`)
   c(localCollections)
   te('Getting internal collections')
+  return localCollections
+}
+
+
+/**
+ * Saving local and external collections that have > 0 variables
+ * @returns {Promise<Collection[]>} List of available collections
+ */
+async function getCollections(resolvedLocalCollections?: Collection[]): Promise<Collection[]> {
+  ts('Getting internal collections')
+  const localCollections = resolvedLocalCollections || await getLocalCollections()
+
+  // Counting to show in UI
+  let count = localCollections.length
+  sendProgress(count, '?')
 
   ts('Getting external collections')
   ts('List of external collections')
   const allExternalCollections = await tl.getAvailableLibraryVariableCollectionsAsync()
   te('List of external collections')
+
+  const totalCollections = localCollections.length + allExternalCollections.length
+  sendProgress(count, totalCollections)
 
   // Non empty collections
   const externalCollections = []
@@ -213,6 +255,7 @@ async function getCollections(): Promise<Collection[]> {
 
       // Renaming libraryName -> lib (as in local)
       delete Object.assign(collection, { ['lib']: collection['libraryName'] })['libraryName']
+      sendThrottledProgress(++count, totalCollections)
       c(collection)
     }
   }
@@ -223,28 +266,50 @@ async function getCollections(): Promise<Collection[]> {
   return collections
 }
 
+const sendThrottledProgress = throttle2(sendProgress, 200)
+function sendProgress(count: number, total: number | string) {
+  c(`Throttle goes RRRR`)
+  figma.ui.postMessage({
+    type: 'count',
+    message: {
+      count: count.toString(),
+      total: total.toString()
+    }
+  })
+}
+
 /**
  * Entry point to swap variables within selected in UI scope
  * @param {CollectionsToSwap} collections — object containing source and destination collections
  * @param {Scope} scope — selection, current page or all pages
  */
-async function startSwap(collections: CollectionsToSwap, scope: Scope) {
+async function startSwap(collections: CollectionsToSwap, scope: Scope, space?: Collection) {
+  c(`Starting swap`)
   ts('Whole swap')
   // Same collections? No need to swap
   if (collections.from.key === collections.to.key) {
     return
   }
 
-  ts('relaunchData')
-  figma.currentPage.selection.forEach(node => node.setPluginData('currentCollectionKey', collections.to.key))
-  ta('relaunchData')
+  if (scope === 'selection') {
+    ts('relaunchData')
+    figma.currentPage.selection.forEach(node => node.setPluginData('currentCollectionKey', collections.to.key))
+    ta('relaunchData')
+  }
+
+  // Don't want to parse it more than once
+  state.localVariables = await v.getLocalVariablesAsync()
+
+  c(`Getting variables for destination collection`)
 
   // Get variables based on local or external collection
   const toVariables = collections.to.local === true ?
     // Just cherry-picking local variables
-    (await v.getLocalVariablesAsync()).filter(el => el.variableCollectionId === collections.to.id) :
+    state.localVariables.filter(el => el.variableCollectionId === collections.to.id) :
     // Resolving external variables by key
     await Promise.all((await tl.getVariablesInLibraryCollectionAsync(collections.to.key)).map(async variable => await v.importVariableByKeyAsync(variable.key)))
+
+  c(`Converting variables to map`)
 
   // Converting to map to speed this shit up
   state.toVariablesMap = new Map(toVariables.map((el: Variable) => [el.name, el]))
@@ -275,6 +340,9 @@ async function startSwap(collections: CollectionsToSwap, scope: Scope) {
       break
     case 'styles':
       await swapStyles(collections)
+      break
+    case 'aliases':
+      await swapAliases(collections, space)
       break
   }
 }
@@ -628,6 +696,47 @@ async function swapStyles(collections: CollectionsToSwap) {
   }
 }
 
+async function swapAliases(collections: CollectionsToSwap, space: Collection) {
+  c(`Swapping aliases`)
+  if (!space) return
+
+  const variables = state.localVariables.filter(el => el.variableCollectionId === space.id)
+  state.nodesAmount = variables.length
+  c(`Found ${variables.length} aliases in space ${space.name}`)
+
+  initProgressNotification(null, { scope: 'aliases' })
+  c(`Unfreeze nodes rate: ${state.nodesAmount * unfreezePercentage}`)
+  setNodesToUnfreeze(state.nodesAmount * unfreezePercentage)
+
+  for (const variable of variables) {
+    c(`Processing variable ${variable.name} with id ${variable.id} ↴`)
+
+    // LOGIC
+    swapAlias(variable, collections)
+
+    state.nodesProcessed++
+    if (state.nodesProcessed % getNodesToUnfreeze() === 0) {
+      ts('mainThread')
+      await wakeUpMainThread()
+      ta('mainThread')
+    }
+  }
+}
+
+async function swapAlias(variable: Variable, collections: CollectionsToSwap) {
+  c(`Current variable ↴`)
+  c(variable)
+
+  for (const [modeId, value] of Object.entries(variable.valuesByMode)) {
+    if ((value as VariableAlias)?.type !== 'VARIABLE_ALIAS') continue
+
+    const aliasedVariable = await v.getVariableByIdAsync((value as VariableAlias).id)
+    const newVariable = await getNewVariable(aliasedVariable, collections, null, variable, 'variableAlias')
+    variable.setValueForMode(modeId, v.createVariableAlias(newVariable))
+  }
+}
+
+
 /**
  * Swap variable of simple property
  * @param {SceneNode} node – node to affect
@@ -814,7 +923,7 @@ async function getNewVariable(variable, collections: CollectionsToSwap, node, st
   c(`Variable belongs to source collection`)
   let newVariable
   try {
-    newVariable = await findVariable(collections.to, resolvedVariable)
+    newVariable = await findVariable(resolvedVariable)
     state.variablesProcessed++
   }
   catch {
@@ -832,16 +941,14 @@ async function getNewVariable(variable, collections: CollectionsToSwap, node, st
 
 
 /**
- * Finds a variable within a given collection.
+ * Finds a variable within a state.toVariables map.
  *
- * @param {Collection} collection - The collection to search within.
  * @param {Variable} variable - The variable to find.
  * @returns {Promise<Variable>} - A promise that resolves to the found variable.
  */
-async function findVariable(collection: Collection, variable: Variable): Promise<Variable> {
+async function findVariable(variable: Variable): Promise<Variable> {
   ts('Finding')
   const name = variable.name
-  c(`Destination is local: ${collection.local}`)
 
   let newVariable: Variable
   if (useMap) {
@@ -860,6 +967,14 @@ async function saveSize(width, height, resized = true) {
   figma.clientStorage.setAsync(storage.uiWidth, width)
   figma.clientStorage.setAsync(storage.uiHeight, height)
   figma.clientStorage.setAsync(storage.resized, resized)
+}
+
+async function saveRecents() {
+  figma.clientStorage.setAsync('recentFrom', state.collectionsToSwap.from.key)
+  figma.clientStorage.setAsync('recentTo', state.collectionsToSwap.to.key)
+  figma.clientStorage.setAsync('recentScope', state.currentScope)
+  figma.clientStorage.setAsync('recentSpace', state.space?.key || null)
+
 }
 
 

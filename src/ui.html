@@ -494,7 +494,27 @@
                         Local styles
                     </div>
                 </label>
+                <label>
+                    <input type="radio" name="scope" value="aliases" />
+                    <span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path opacity="0.5" d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="black" stroke-opacity="0.9" stroke-linejoin="round" />
+                            <path d="M7 2.57735C7.6188 2.22008 8.3812 2.22008 9 2.57735L12.1962 4.42265C12.815 4.77992 13.1962 5.44017 13.1962 6.1547V9.8453C13.1962 10.5598 12.815 11.2201 12.1962 11.5774L9 13.4226C8.3812 13.7799 7.6188 13.7799 7 13.4226L3.80385 11.5774C3.18505 11.2201 2.80385 10.5598 2.80385 9.8453V6.1547C2.80385 5.44017 3.18505 4.77992 3.80385 4.42265L7 2.57735Z" stroke="black" stroke-opacity="0.9" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <div class="tooltip">
+                        Variable<br />aliases
+                    </div>
+                </label>
             </fieldset>
+        </div>
+        <div class="form-item space" hidden>
+            <label for="space">Linked collection</label>
+            <div class="select-wrapper">
+                <select id="space" name="space">
+                    <option class="stub">Loading...</option>
+                </select>
+            </div>
         </div>
         <!-- <div class="checkbox">
             <input type="checkbox" id="detachStyles" name="detachStyles" />
@@ -553,10 +573,16 @@
 </div>
 <script>
     console.time('Query selecting')
+    const containerEl = document.querySelector('.container')
     const form = document.querySelector('form')
     const selectFrom = form.querySelector('select[name=from]')
+    const stubFrom = selectFrom.querySelector('option.stub')
     const selectTo = form.querySelector('select[name=to]')
+    const stubTo = selectTo.querySelector('option.stub')
     const scopeSelect = form.querySelector('.scope')
+    const radioAliases = scopeSelect.querySelector('input[value=aliases]')
+    const selectSpaceEl = form.querySelector('div.space')
+    const selectSpace = form.querySelector('select[name=space]')
     const reverse = form.querySelector('button.reverse')
     const errorsEl = document.querySelector('.errors')
     const heading = errorsEl.querySelector('h2')
@@ -579,6 +605,12 @@
 
     initResizer()
 
+    const radioButtons = scopeSelect.querySelectorAll('input[type=radio]')
+        .forEach(radio => {
+            radio.addEventListener('change', handleScopeChange);
+        })
+
+
     window.onmessage = async (event) => {
         const type = event.data.pluginMessage.type
         const message = event.data.pluginMessage.message
@@ -586,17 +618,42 @@
         console.log(message)
 
         switch (type) {
+            case 'count':
+                updateStub(message.count, message.total)
+                break
             case 'scope':
                 defineScope(message.scope)
                 break
+            case 'spaces':
+                fillSpaces(message.collections, message.current)
+                break
             case 'collections':
-                fillLibs(message.collections, message.current)
+                fillLibs(message.collections, message.recentFrom, message.recentTo)
                 break
             case 'finish':
                 finish(message.errors, message.newCollection)
                 break
 
         }
+    }
+
+    const selectHeight = 81
+
+    function handleScopeChange(event) {
+        const selected = event.target.value
+        parent.postMessage({
+            pluginMessage: {
+                type: 'scope',
+                message: {
+                    scope: selected,
+                }
+            }
+        }, '*')
+
+        const showSpaceSelect = selected === 'aliases'
+        const needSpace = containerEl.scrollHeight > innerHeight
+
+        selectSpaceEl.hidden = !showSpaceSelect
     }
 
     form.onsubmit = (event) => {
@@ -610,6 +667,7 @@
 
         const from = selectFrom.selectedOptions[0]
         const to = selectTo.selectedOptions[0]
+        const space = selectSpace.selectedOptions[0]
 
         const scope = scopeSelect.querySelector('input:checked').value
 
@@ -633,7 +691,12 @@
                         } : null
                     },
                     // detachStyles: document.getElementById('detachStyles').checked,
-                    scope: scope
+                    scope: scope,
+                    space: scope === 'aliases' ? {
+                        name: space.dataset.name,
+                        key: space.dataset.key,
+                        id: space.dataset.id,
+                    } : null
                 }
             }
         }, '*')
@@ -654,7 +717,29 @@
         selectTo.options[fromIndex].selected = true
     }
 
-    function fillLibs(collections, currentCollection) {
+    function fillSpaces(collections, recentSpace) {
+        console.time('Filling spaces')
+        for (const collection of collections) {
+            const option = document.createElement('option')
+            option.textContent = `${collection.name}`
+            option.dataset.name = collection.name
+            option.dataset.key = collection.key
+            option.dataset.id = collection.id
+            selectSpace.appendChild(option)
+        }
+        console.timeEnd('Filling spaces')
+
+        // Remove loading
+        selectSpace.removeChild(selectSpace.querySelector('option.stub'))
+
+        // Set recent collection
+        if (recentSpace) {
+            selectByKey(selectSpace, recentSpace)
+        }
+
+    }
+
+    function fillLibs(collections, recentFrom, recentTo) {
         console.time('Filling libs')
         const options = Object.groupBy(collections, ({ lib }) => lib)
 
@@ -686,19 +771,22 @@
         selectTo.appendChild(option)
 
         // Remove loading
-        selectFrom.removeChild(selectFrom.querySelector('option.stub'))
-        selectTo.removeChild(selectTo.querySelector('option.stub'))
+        selectFrom.removeChild(stubFrom)
+        selectTo.removeChild(stubTo)
 
-        if (currentCollection) {
-            selectByKey(selectFrom, currentCollection)
-        }
+        if (recentFrom) selectByKey(selectFrom, recentFrom)
+        if (recentTo) selectByKey(selectTo, recentTo)
 
         console.timeEnd('Filling libs')
     }
 
     function defineScope(scope) {
-        if (['selection', 'thisPage', 'allPages', 'styles'].includes(scope))
-            scopeSelect.querySelector(`input[value=${scope}]`).checked = true
+        if (!['selection', 'thisPage', 'allPages', 'styles', 'aliases'].includes(scope))
+            return
+
+        const selected = scopeSelect.querySelector(`input[value=${scope}]`)
+        selected.checked = true
+        handleScopeChange({ target: selected })
     }
 
     function finish(errors, newCollection) {
@@ -845,6 +933,13 @@
                 lists[key].style.display = 'flex'
             }
         }
+    }
+
+    function updateStub(count, total) {
+        if (!stubTo && !stubFrom) return
+        const msg = `Loading ${count} of ${total}...`
+        stubFrom.textContent = msg
+        stubTo.textContent = msg
     }
 
     function clearErrors() {
