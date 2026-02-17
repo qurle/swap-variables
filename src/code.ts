@@ -110,7 +110,7 @@ figma.ui.onmessage = async (msg) => {
       c(`Space of swapping ↴`)
       c(state.space)
 
-      saveRecents(state.collectionsToSwap)
+      saveRecents()
 
       // state.detachStyles = msg.message.detachStyles
       // c(`Should detach styles`)
