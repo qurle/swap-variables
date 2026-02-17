@@ -40,6 +40,28 @@ export function delay(ms) {
     })
 }
 
+export function throttle(func: Function, limit: number) {
+    let inThrottle: boolean;
+    return function (...args: any) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    }
+}
+
+export function throttle2(callee, timeout) {
+    let timer = null
+    return function perform(...args) {
+        if (timer) return
+        timer = setTimeout(() => {
+            callee(...args)
+            timer = null
+        }, timeout)
+    }
+}
+
 export function countChildren(nodes) {
     return nodes.reduce((accumulator,
         node) => {
@@ -65,6 +87,10 @@ export async function wakeUpMainThread(delay = 1000) {
     return await new Promise((resolve) => {
         setTimeout(resolve, delay)
     })
+}
+
+export function random(array: any[]) {
+    return array[Math.floor(Math.random() * array.length)]
 }
 
 export function c(str: any = 'here', type?: 'error' | 'warn') {

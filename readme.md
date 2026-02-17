@@ -11,7 +11,7 @@ Just like Swap Libraries, but for variables.
 Run it from the Quick Actions or Plugin menu.
 Select some layers, choose source and destination variable collections and hit Swap button.
 
-You can choose the scope for plugin: selection, current page, all pages or local styles.
+You can choose the scope for plugin: selection, current page, all pages, local styles or links in local variables (aka aliases)ⁿᵉʷ.
 
 After all, you may see some error. Click on them to focus viewport on problematic objects.
 
@@ -32,20 +32,6 @@ After the plugin ends its job, it will display known ecnountered errors below Sw
 -   Plugin doesn't swap styles. Use [Swap Libraries](https://help.figma.com/hc/en-us/articles/4404856784663-Swap-style-and-component-libraries) instead.
 -   Plugin can't swap strokes in section. That’s not supported by Figma API yet. Do it manually instead.
 -   It may take some time to parse and swap variables when there're to many nodes or variables. Take a break and make some tea.
--   Scoped variables was not tested.
-
-## Possible features
-
--   [x] Clickable error allows to zoom in problematic layers.
--   [x] Collections with 0 variables are hidden.
--   [x] Ability to create new local collection.
--   [x] Typographic variables.
--   [x] Rebinding modes if the share the same name.
--   [x] Multipage swap.
--   [x] Swapping variables in local styles.
--	[x] Gradient support.
--   [ ] Display number of variables in collection.
--   [ ] Selecting the option that's in second select makes them swap.
 
 ## Problem? Idea? Kind words?
 

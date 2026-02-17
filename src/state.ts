@@ -11,6 +11,8 @@ export const state = {
 	toVariablesMap: new Map<string, Variable>(),
 	showProgress: false,
 	currentScope: null as Scope,
+	space: null as Collection,
+	localVariables: [] as Variable[],
 	availableFonts: [] as Font[],
 	showMainThread: false,
 	detachStyles: false,
