@@ -40,17 +40,6 @@ export function delay(ms) {
     })
 }
 
-export function throttle(func: Function, limit: number) {
-    let inThrottle: boolean;
-    return function (...args: any) {
-        if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    }
-}
-
 export function throttle2(callee, timeout) {
     let timer = null
     return function perform(...args) {

@@ -1,6 +1,6 @@
 // Show logs and timers
-export const logs = true
-export const timers = true
+export const logs = false
+export const timers = false
 export const useMap = true
 
 // Arrays of specific prooperties
