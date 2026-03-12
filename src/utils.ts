@@ -40,7 +40,7 @@ export function delay(ms) {
     })
 }
 
-export function throttle2(callee, timeout) {
+export function throttle(callee, timeout) {
     let timer = null
     return function perform(...args) {
         if (timer) return

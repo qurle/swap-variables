@@ -8,7 +8,7 @@ import { clearNotifications, initProgressNotification, notify, showFinishNotific
 import { clearCounters, state } from './state'
 import { clearTimers, showTimers, timeAdd as ta, timeEnd as te, time, timeStart as ts } from './timers'
 import { Collection, CollectionsToSwap, ProgressOptions, Scope } from './types'
-import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, throttle, throttle2, wakeUpMainThread } from './utils'
+import { c, countChildren, figmaRGBToHex, getNodesToUnfreeze, setNodesToUnfreeze, throttle, wakeUpMainThread } from './utils'
 
 // Idk why I made this
 const OK = -1
@@ -266,7 +266,7 @@ async function getCollections(resolvedLocalCollections?: Collection[]): Promise<
   return collections
 }
 
-const sendThrottledProgress = throttle2(sendProgress, 200)
+const sendThrottledProgress = throttle(sendProgress, 200)
 function sendProgress(count: number, total: number | string) {
   c(`Throttle goes RRRR`)
   figma.ui.postMessage({

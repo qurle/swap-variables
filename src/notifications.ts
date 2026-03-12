@@ -1,8 +1,8 @@
-import { error, errors, gotErrors } from './errors';
+import { errors, gotErrors } from './errors';
 import { state } from './state';
-import { time, timeEnd as te, timeStart as ts, timeAdd as ta } from './timers';
+import { timeEnd as te, timeStart as ts, timeAdd as ta } from './timers';
 import { MessageEntity, ProgressOptions } from './types';
-import { c, countChildren, generateProgress, random } from './utils';
+import { c, generateProgress, random } from './utils';
 
 const actionMsgs = ["Affected", "Updated"]
 const idleMsgs = ["No variables swapped", "Nothing changed", "Any layers to affect? Can't see it", "Nothing to do"]
